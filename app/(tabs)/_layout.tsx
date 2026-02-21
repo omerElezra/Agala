@@ -1,11 +1,12 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Link, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
+import { useAuth } from '@/src/hooks/useAuth';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -17,6 +18,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { signOut } = useAuth();
 
   return (
     <Tabs
@@ -31,6 +33,11 @@ export default function TabLayout() {
         options={{
           title: 'עגלה',
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
+          headerRight: () => (
+            <Pressable onPress={signOut} style={{ marginEnd: 16 }}>
+              <FontAwesome name="sign-out" size={22} color={Colors[colorScheme ?? 'light'].text} />
+            </Pressable>
+          ),
         }}
       />
       <Tabs.Screen

@@ -145,6 +145,8 @@ export default function HomeScreen() {
   }, [autoAdded, manual, purchased]);
 
   // ── Guards ─────────────────────────────────────────────────
+  // Auth is enforced at root layout level via Redirect.
+  // Here we only guard against loading states.
   if (authLoading || isLoading) {
     return (
       <View style={styles.centered}>
@@ -154,11 +156,7 @@ export default function HomeScreen() {
   }
 
   if (!user) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.emptyText}>יש להתחבר כדי לצפות ברשימה</Text>
-      </View>
-    );
+    return null; // Root layout will redirect to /auth
   }
 
   // ── Main UI ────────────────────────────────────────────────

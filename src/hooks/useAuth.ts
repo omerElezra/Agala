@@ -9,6 +9,7 @@ interface AuthState {
   session: Session | null;
   user: UserRow | null;
   isLoading: boolean;
+  signOut: () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
@@ -54,5 +55,11 @@ export function useAuth(): AuthState {
     setIsLoading(false);
   }
 
-  return { session, user, isLoading };
+  async function signOut() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
+  }
+
+  return { session, user, isLoading, signOut };
 }
