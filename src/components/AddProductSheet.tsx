@@ -9,6 +9,8 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useShoppingListStore } from '../store/shoppingListStore';
+import { dark } from '@/constants/theme';
+import { detectCategory } from '../utils/categoryDetector';
 import type { Database } from '../types/database';
 
 type ProductRow = Database['public']['Tables']['products']['Row'];
@@ -21,8 +23,40 @@ interface AddProductSheetProps {
 export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ProductRow[]>([]);
+  const [recentProducts, setRecentProducts] = useState<ProductRow[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [existsMessage, setExistsMessage] = useState<string | null>(null);
   const addItem = useShoppingListStore((s) => s.addItem);
+
+  // ── Fetch recently purchased products ──────────────────────
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('shopping_list')
+        .select('product:products(*)')
+        .eq('household_id', householdId)
+        .eq('status', 'purchased')
+        .order('purchased_at', { ascending: false })
+        .limit(20);
+
+      if (data) {
+        // Deduplicate by product id and filter nulls
+        const seen = new Set<string>();
+        const products: ProductRow[] = [];
+        for (const row of data) {
+          const p = (row as any).product as ProductRow | null;
+          if (p && !seen.has(p.id)) {
+            seen.add(p.id);
+            products.push(p);
+          }
+          if (products.length >= 8) break;
+        }
+        setRecentProducts(products);
+      }
+    })();
+  }, [householdId]);
 
   // ── Debounced search (300 ms) ──────────────────────────────
   useEffect(() => {
@@ -47,34 +81,121 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
   }, [query]);
 
   const handleSelect = useCallback(
-    async (product: ProductRow) => {
-      await addItem(product.id, householdId);
+    (product: ProductRow) => {
+      setSelectedProduct(product);
+      setQuantity(1);
+    },
+    [],
+  );
+
+  const handleConfirmAdd = useCallback(async () => {
+    if (!selectedProduct) return;
+    setExistsMessage(null);
+    const result = addItem(selectedProduct.id, householdId, quantity, selectedProduct);
+    if (result === 'exists') {
+      setExistsMessage(`"${selectedProduct.name}" כבר נמצא ברשימה`);
+      return;
+    }
+    onClose();
+  }, [selectedProduct, quantity, addItem, householdId, onClose]);
+
+  const handleCancelSelection = useCallback(() => {
+    setSelectedProduct(null);
+    setQuantity(1);
+  }, []);
+
+  const items = useShoppingListStore((s) => s.items);
+
+  const handleCreateCustom = useCallback(async () => {
+    if (query.trim().length === 0) return;
+    setExistsMessage(null);
+
+    const trimmed = query.trim();
+
+    // 1. Check if an active item with the same product name already exists
+    const duplicate = items.find(
+      (i) =>
+        i.status === 'active' &&
+        i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (duplicate) {
+      setExistsMessage(`"${trimmed}" כבר נמצא ברשימה`);
+      return;
+    }
+
+    // 2. Reuse existing product if one with this name exists
+    const { data: existingProduct } = await supabase
+      .from('products')
+      .select('*')
+      .ilike('name', trimmed)
+      .limit(1)
+      .maybeSingle();
+
+    let productToAdd: ProductRow;
+
+    if (existingProduct) {
+      productToAdd = existingProduct;
+    } else {
+      // Try to detect category automatically
+      let category: string | null = detectCategory(trimmed);
+
+      // Fallback: look for a similar product name in DB to copy its category
+      if (!category) {
+        const firstWord = trimmed.split(/\s+/)[0];
+        if (firstWord && firstWord.length >= 2) {
+          const { data: similar } = await supabase
+            .from('products')
+            .select('category')
+            .ilike('name', `%${firstWord}%`)
+            .not('category', 'is', null)
+            .limit(1)
+            .maybeSingle();
+          if (similar?.category) category = similar.category;
+        }
+      }
+
+      const { data: newProduct, error } = await supabase
+        .from('products')
+        .insert({
+          name: trimmed,
+          is_custom: true,
+          created_by_household: householdId,
+          ...(category ? { category } : {}),
+        })
+        .select()
+        .single();
+
+      if (error || !newProduct) {
+        console.error('[AddProduct] create error:', error?.message);
+        return;
+      }
+      productToAdd = newProduct;
+    }
+
+    const result = addItem(productToAdd.id, householdId, quantity, productToAdd);
+    if (result === 'exists') {
+      setExistsMessage(`"${trimmed}" כבר נמצא ברשימה`);
+      return;
+    }
+    onClose();
+  }, [query, householdId, addItem, onClose, quantity, items]);
+
+  // Handle selecting a product from recent chips
+  const handleRecentChipPress = useCallback(
+    (product: ProductRow) => {
+      setExistsMessage(null);
+      const result = addItem(product.id, householdId, 1, product);
+      if (result === 'exists') {
+        setExistsMessage(`"${product.name}" כבר נמצא ברשימה`);
+        return;
+      }
       onClose();
     },
     [addItem, householdId, onClose],
   );
 
-  const handleCreateCustom = useCallback(async () => {
-    if (query.trim().length === 0) return;
-
-    const { data: newProduct, error } = await supabase
-      .from('products')
-      .insert({
-        name: query.trim(),
-        is_custom: true,
-        created_by_household: householdId,
-      })
-      .select()
-      .single();
-
-    if (error || !newProduct) {
-      console.error('[AddProduct] create error:', error?.message);
-      return;
-    }
-
-    await addItem(newProduct.id, householdId);
-    onClose();
-  }, [query, householdId, addItem, onClose]);
+  // Show recent products only when search is empty
+  const showRecent = query.length < 2 && recentProducts.length > 0;
 
   return (
     <View style={styles.container}>
@@ -90,13 +211,89 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
       <TextInput
         style={styles.input}
         placeholder="חפש מוצר..."
-        placeholderTextColor="#aaa"
+        placeholderTextColor={dark.placeholder}
         value={query}
         onChangeText={setQuery}
         autoFocus
       />
 
       {isSearching && <Text style={styles.searching}>מחפש...</Text>}
+
+      {/* "Already in cart" message */}
+      {existsMessage && (
+        <View style={styles.existsBanner}>
+          <Text style={styles.existsText}>⚠️ {existsMessage}</Text>
+        </View>
+      )}
+
+      {/* Quantity picker — shown after selecting a product */}
+      {selectedProduct && (
+        <View style={styles.qtySection}>
+          <Text style={styles.qtyProductName}>{selectedProduct.name}</Text>
+          <View style={styles.qtyRow}>
+            <Text style={styles.qtyLabel}>כמות:</Text>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+            >
+              <Text style={styles.qtyBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.qtyValue}>{quantity}</Text>
+            <TouchableOpacity
+              style={styles.qtyBtn}
+              onPress={() => setQuantity((q) => q + 1)}
+            >
+              <Text style={styles.qtyBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.qtyActions}>
+            <TouchableOpacity style={styles.qtyConfirmBtn} onPress={handleConfirmAdd}>
+              <Text style={styles.qtyConfirmText}>הוסף לרשימה</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.qtyCancelBtn} onPress={handleCancelSelection}>
+              <Text style={styles.qtyCancelText}>חזרה</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Recently purchased — shown when no search query */}
+      {showRecent && (
+        <View style={styles.recentSection}>
+          <Text style={styles.recentTitle}>🕐 נרכשו לאחרונה</Text>
+          <View style={styles.recentGrid}>
+            {recentProducts.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                style={styles.recentChip}
+                onPress={() => handleSelect(p)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.recentChipText}>{p.name}</Text>
+                <Text style={styles.recentPlus}>+</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Empty search hint */}
+      {query.length > 0 && query.length < 2 && (
+        <Text style={styles.hintText}>הקלידו לפחות 2 תווים לחיפוש</Text>
+      )}
+
+      {/* No results */}
+      {query.length >= 2 && !isSearching && results.length === 0 && (
+        <View style={styles.noResults}>
+          <Text style={styles.noResultsEmoji}>🔍</Text>
+          <Text style={styles.noResultsText}>
+            לא נמצאו תוצאות עבור &quot;{query}&quot;
+          </Text>
+          <Text style={styles.noResultsHint}>
+            ניתן ליצור מוצר חדש בלחיצה למטה
+          </Text>
+        </View>
+      )}
 
       {/* Results list */}
       <FlatList
@@ -136,7 +333,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: dark.background,
     paddingTop: 8,
   },
   header: {
@@ -147,16 +344,17 @@ const styles = StyleSheet.create({
     paddingEnd: 16,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: dark.border,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#222',
+    color: dark.text,
+    textAlign: 'right',
   },
   closeBtn: {
     fontSize: 20,
-    color: '#999',
+    color: dark.textSecondary,
   },
   input: {
     marginStart: 16,
@@ -164,16 +362,32 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: dark.input,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: dark.inputBorder,
+    color: dark.inputText,
+    textAlign: 'right',
   },
   searching: {
     textAlign: 'center',
-    color: '#999',
+    color: dark.textSecondary,
     fontSize: 14,
     marginBottom: 8,
+  },
+  existsBanner: {
+    backgroundColor: dark.warningBg,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  existsText: {
+    color: dark.warning,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'right',
   },
   list: {
     flex: 1,
@@ -186,27 +400,172 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: dark.border,
   },
   resultName: {
     fontSize: 16,
-    color: '#222',
+    color: dark.text,
+    textAlign: 'right',
   },
   resultCat: {
     fontSize: 13,
-    color: '#888',
+    color: dark.textSecondary,
+    textAlign: 'right',
   },
   createBtn: {
     padding: 16,
     alignItems: 'center',
-    backgroundColor: '#e8f5e9',
+    backgroundColor: dark.successBg,
     borderRadius: 10,
     marginTop: 8,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: dark.success,
   },
   createBtnText: {
     fontSize: 15,
-    color: '#2e7d32',
+    color: dark.success,
     fontWeight: '600',
+  },
+  recentSection: {
+    paddingStart: 16,
+    paddingEnd: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: dark.border,
+  },
+  recentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: dark.textSecondary,
+    marginBottom: 10,
+    textAlign: 'right',
+  },
+  recentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  recentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: dark.chip,
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingStart: 14,
+    paddingEnd: 10,
+    borderWidth: 1,
+    borderColor: dark.chipBorder,
+    gap: 6,
+  },
+  recentChipText: {
+    fontSize: 14,
+    color: dark.chipText,
+  },
+  recentPlus: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: dark.accent,
+  },
+  hintText: {
+    textAlign: 'center',
+    color: dark.textMuted,
+    fontSize: 14,
+    marginTop: 20,
+  },
+  noResults: {
+    alignItems: 'center',
+    paddingTop: 30,
+    paddingBottom: 10,
+  },
+  noResultsEmoji: {
+    fontSize: 36,
+    marginBottom: 8,
+  },
+  noResultsText: {
+    fontSize: 15,
+    color: dark.textSecondary,
+    fontWeight: '600',
+  },
+  noResultsHint: {
+    fontSize: 13,
+    color: dark.textMuted,
+    marginTop: 4,
+  },
+  qtySection: {
+    marginStart: 16,
+    marginEnd: 16,
+    marginBottom: 12,
+    padding: 16,
+    backgroundColor: dark.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: dark.accent,
+  },
+  qtyProductName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: dark.text,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  qtyLabel: {
+    fontSize: 15,
+    color: dark.textSecondary,
+    fontWeight: '600',
+  },
+  qtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: dark.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnText: {
+    fontSize: 20,
+    color: '#fff',
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  qtyValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: dark.text,
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  qtyActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 14,
+  },
+  qtyConfirmBtn: {
+    paddingVertical: 10,
+    paddingStart: 20,
+    paddingEnd: 20,
+    backgroundColor: dark.success,
+    borderRadius: 10,
+  },
+  qtyConfirmText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  qtyCancelBtn: {
+    paddingVertical: 10,
+    paddingStart: 16,
+    paddingEnd: 16,
+  },
+  qtyCancelText: {
+    color: dark.textMuted,
+    fontSize: 14,
   },
 });

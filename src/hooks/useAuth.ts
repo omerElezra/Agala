@@ -19,10 +19,12 @@ export function useAuth(): AuthState {
 
   useEffect(() => {
     // Get initial session
+    console.log('[useAuth] Initializing…');
     supabase.auth.getSession().then(({ data: { session: s } }) => {
+      console.log('[useAuth] getSession result:', !!s);
       setSession(s);
-      if (s?.user) {
-        fetchProfile(s.user.id);
+      if (s) {
+        fetchOrCreateProfile(s);
       } else {
         setIsLoading(false);
       }
@@ -30,10 +32,11 @@ export function useAuth(): AuthState {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, s) => {
+      (event, s) => {
+        console.log('[useAuth] onAuthStateChange:', event, 'session:', !!s);
         setSession(s);
-        if (s?.user) {
-          fetchProfile(s.user.id);
+        if (s) {
+          fetchOrCreateProfile(s);
         } else {
           setUser(null);
           setIsLoading(false);
@@ -44,14 +47,81 @@ export function useAuth(): AuthState {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchProfile(userId: string) {
-    const { data } = await supabase
+  /**
+   * Fetch the user profile from public.users.
+   * If the auth trigger (03_auth_trigger.sql) wasn't applied, the profile
+   * won't exist — in that case, create one on-the-fly so the app still works.
+   */
+  async function fetchOrCreateProfile(s: Session) {
+    const userId = s.user.id;
+    console.log('[useAuth] fetchOrCreateProfile for', userId);
+
+    const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single();
 
-    setUser(data);
+    if (data) {
+      console.log(
+        '[useAuth] profile loaded:',
+        data.display_name,
+        'household_id:',
+        data.household_id,
+      );
+      setUser(data);
+      setIsLoading(false);
+      return;
+    }
+
+    // Profile doesn't exist → create household + profile as fallback
+    console.warn(
+      '[useAuth] No profile found — creating household + profile as fallback.',
+      'Run 03_auth_trigger.sql in Supabase to avoid this.',
+    );
+
+    try {
+      // 1. Create a household
+      const { data: household, error: hhErr } = await supabase
+        .from('households')
+        .insert({ created_at: new Date().toISOString() })
+        .select('id')
+        .single();
+
+      if (hhErr || !household) {
+        console.error('[useAuth] Failed to create household:', hhErr?.message);
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Create the user profile
+      const displayName =
+        s.user.user_metadata?.display_name ??
+        s.user.email?.split('@')[0] ??
+        '';
+
+      const { data: newUser, error: userErr } = await supabase
+        .from('users')
+        .insert({
+          id: userId,
+          household_id: household.id,
+          email: s.user.email ?? '',
+          display_name: displayName,
+          created_at: new Date().toISOString(),
+        })
+        .select('*')
+        .single();
+
+      if (userErr) {
+        console.error('[useAuth] Failed to create user profile:', userErr.message);
+      } else {
+        console.log('[useAuth] Fallback profile created:', newUser?.display_name);
+        setUser(newUser);
+      }
+    } catch (e) {
+      console.error('[useAuth] Fallback profile creation error:', e);
+    }
+
     setIsLoading(false);
   }
 

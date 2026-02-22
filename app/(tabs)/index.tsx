@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -15,12 +16,14 @@ import {
   type SuggestionItem,
 } from '@/src/store/shoppingListStore';
 import { useAuth } from '@/src/hooks/useAuth';
+import { dark } from '@/constants/theme';
 import { SuggestionChips } from '@/src/components/SuggestionChips';
 import { ShoppingListItem } from '@/src/components/ShoppingListItem';
 import { SnoozeSheet } from '@/src/components/SnoozeSheet';
 import { AddProductSheet } from '@/src/components/AddProductSheet';
 
 // ── FlatList union type (section headers mixed with items) ────
+type SortMode = 'default' | 'name' | 'category';
 type ListRow =
   | ShoppingItem
   | { type: 'header'; title: string; emoji: string; key: string };
@@ -46,6 +49,9 @@ export default function HomeScreen() {
 
   const [snoozeTarget, setSnoozeTarget] = useState<ShoppingItem | null>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showPurchased, setShowPurchased] = useState(true);
+  const [sortMode, setSortMode] = useState<SortMode>('default');
 
   // ── Bootstrap ──────────────────────────────────────────────
   useEffect(() => {
@@ -57,6 +63,14 @@ export default function HomeScreen() {
 
     return unsub;
   }, [user?.household_id, fetchList, subscribeRealtime, flushOfflineQueue]);
+
+  // ── Pull-to-refresh ────────────────────────────────────────
+  const onRefresh = useCallback(async () => {
+    if (!user?.household_id) return;
+    setRefreshing(true);
+    await fetchList(user.household_id);
+    setRefreshing(false);
+  }, [user?.household_id, fetchList]);
 
   // ── Split items into 3 sections ────────────────────────────
   const { autoAdded, manual, purchased } = useMemo(() => {
@@ -128,21 +142,61 @@ export default function HomeScreen() {
   const listData = useMemo<ListRow[]>(() => {
     const data: ListRow[] = [];
 
-    if (autoAdded.length > 0) {
-      data.push({ type: 'header', title: 'הוספה אוטומטית', emoji: '✨', key: 'h-auto' });
-      data.push(...autoAdded);
+    // Helper: sort items by the current mode
+    const sortItems = (arr: ShoppingItem[]): ShoppingItem[] => {
+      if (sortMode === 'name') {
+        return [...arr].sort((a, b) =>
+          (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he'),
+        );
+      }
+      if (sortMode === 'category') {
+        return [...arr].sort((a, b) => {
+          const catA = a.product?.category ?? 'ללא קטגוריה';
+          const catB = b.product?.category ?? 'ללא קטגוריה';
+          const catCmp = catA.localeCompare(catB, 'he');
+          if (catCmp !== 0) return catCmp;
+          return (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he');
+        });
+      }
+      return arr; // default: keep original order
+    };
+
+    // When sorting by category, group active items (auto + manual) by category
+    if (sortMode === 'category') {
+      const allActive = [...autoAdded, ...manual];
+      const sorted = sortItems(allActive);
+
+      // Group by category
+      let lastCat = '';
+      for (const item of sorted) {
+        const cat = item.product?.category || 'ללא קטגוריה';
+        if (cat !== lastCat) {
+          data.push({ type: 'header', title: cat, emoji: '📦', key: `h-cat-${cat}` });
+          lastCat = cat;
+        }
+        data.push(item);
+      }
+    } else {
+      // default or name sort
+      if (autoAdded.length > 0) {
+        data.push({ type: 'header', title: 'הוספה אוטומטית', emoji: '✨', key: 'h-auto' });
+        data.push(...sortItems(autoAdded));
+      }
+      if (manual.length > 0) {
+        data.push({ type: 'header', title: 'הוספה ידנית', emoji: '✏️', key: 'h-manual' });
+        data.push(...sortItems(manual));
+      }
     }
-    if (manual.length > 0) {
-      data.push({ type: 'header', title: 'הוספה ידנית', emoji: '✏️', key: 'h-manual' });
-      data.push(...manual);
-    }
+
     if (purchased.length > 0) {
-      data.push({ type: 'header', title: 'נרכשו', emoji: '✓', key: 'h-purchased' });
-      data.push(...purchased);
+      data.push({ type: 'header', title: `נרכשו (${purchased.length})`, emoji: '✓', key: 'h-purchased' });
+      if (showPurchased) {
+        data.push(...sortItems(purchased));
+      }
     }
 
     return data;
-  }, [autoAdded, manual, purchased]);
+  }, [autoAdded, manual, purchased, showPurchased, sortMode]);
 
   // ── Guards ─────────────────────────────────────────────────
   // Auth is enforced at root layout level via Redirect.
@@ -150,13 +204,26 @@ export default function HomeScreen() {
   if (authLoading || isLoading) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" color="#2f95dc" />
+        <ActivityIndicator size="large" color={dark.accent} />
       </View>
     );
   }
 
   if (!user) {
     return null; // Root layout will redirect to /auth
+  }
+
+  // Guard: household_id is required — the auth trigger may not have run
+  if (!user.household_id) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.emptyEmoji}>⚠️</Text>
+        <Text style={styles.emptyText}>חסר מזהה משק בית</Text>
+        <Text style={styles.emptySubtext}>
+          נסו להתנתק ולהירשם מחדש, או פנו לתמיכה
+        </Text>
+      </View>
+    );
   }
 
   // ── Main UI ────────────────────────────────────────────────
@@ -168,13 +235,57 @@ export default function HomeScreen() {
         onAccept={handleAcceptSuggestion}
       />
 
+      {/* Sort toggle */}
+      <View style={styles.sortBar}>
+        <TouchableOpacity
+          style={[styles.sortBtn, sortMode === 'default' && styles.sortBtnActive]}
+          onPress={() => setSortMode('default')}
+        >
+          <Text style={[styles.sortBtnText, sortMode === 'default' && styles.sortBtnTextActive]}>ברירת מחדל</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.sortBtn, sortMode === 'name' && styles.sortBtnActive]}
+          onPress={() => setSortMode('name')}
+        >
+          <Text style={[styles.sortBtnText, sortMode === 'name' && styles.sortBtnTextActive]}>לפי שם</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.sortBtn, sortMode === 'category' && styles.sortBtnActive]}
+          onPress={() => setSortMode('category')}
+        >
+          <Text style={[styles.sortBtnText, sortMode === 'category' && styles.sortBtnTextActive]}>לפי קטגוריה</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Shopping list with section headers */}
       <FlatList
         data={listData}
         keyExtractor={(row) => ('type' in row ? row.key : row.id)}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
         renderItem={({ item: row }) => {
           if ('type' in row) {
+            // Purchased section header is tappable to toggle
+            if (row.key === 'h-purchased') {
+              return (
+                <TouchableOpacity
+                  style={styles.sectionHeader}
+                  onPress={() => setShowPurchased((v) => !v)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.sectionTitle}>
+                      {row.emoji} {row.title}
+                    </Text>
+                    <Text style={styles.toggleArrow}>
+                      {showPurchased ? '▲' : '▼'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }
             return (
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>
@@ -228,32 +339,69 @@ export default function HomeScreen() {
   );
 }
 
-// ── Styles (RTL-safe: start/end, no left/right) ──────────────
+// ── Styles (Dark mode, RTL-safe) ──────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: dark.background,
   },
   centered: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: dark.background,
   },
   listContent: {
     paddingBottom: 100,
+  },
+  sortBar: {
+    flexDirection: 'row-reverse',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    backgroundColor: dark.background,
+  },
+  sortBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: dark.surfaceAlt,
+    borderWidth: 1,
+    borderColor: dark.border,
+  },
+  sortBtnActive: {
+    backgroundColor: dark.accent,
+    borderColor: dark.accent,
+  },
+  sortBtnText: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    fontWeight: '600',
+  },
+  sortBtnTextActive: {
+    color: '#fff',
   },
   sectionHeader: {
     paddingStart: 16,
     paddingEnd: 16,
     paddingTop: 16,
     paddingBottom: 6,
-    backgroundColor: '#fafafa',
+    backgroundColor: dark.sectionBg,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#666',
+    color: dark.textSecondary,
+    textAlign: 'right',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toggleArrow: {
+    fontSize: 12,
+    color: dark.textMuted,
   },
   emptyContainer: {
     flex: 1,
@@ -268,11 +416,11 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#555',
+    color: dark.text,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: dark.textSecondary,
     marginTop: 4,
   },
   fab: {
@@ -282,13 +430,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#2f95dc',
+    backgroundColor: dark.fab,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.27,
+    shadowOpacity: 0.5,
     shadowRadius: 4.65,
   },
   fabText: {

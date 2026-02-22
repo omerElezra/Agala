@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { dark } from '@/constants/theme';
 
 interface SnoozeSheetProps {
   visible: boolean;
@@ -69,15 +70,15 @@ export function SnoozeSheet({
   );
 }
 
-// ── Styles (RTL-safe) ────────────────────────────────────────
+// ── Styles (Dark mode, RTL-safe) ─────────────────────────────
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#fff',
+    backgroundColor: dark.surface,
     borderTopStartRadius: 20,
     borderTopEndRadius: 20,
     padding: 20,
@@ -87,7 +88,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#ddd',
+    backgroundColor: dark.border,
     alignSelf: 'center',
     marginBottom: 16,
   },
@@ -96,13 +97,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     marginBottom: 20,
-    color: '#222',
+    color: dark.text,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: dark.surfaceAlt,
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
@@ -110,17 +111,19 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontSize: 16,
-    color: '#333',
+    color: dark.text,
+    textAlign: 'right',
   },
   optionEmoji: {
     fontSize: 20,
   },
   removeOption: {
-    backgroundColor: '#fff0f0',
+    backgroundColor: dark.errorBg,
   },
   removeText: {
     fontSize: 16,
-    color: '#d32f2f',
+    color: dark.error,
+    textAlign: 'right',
   },
   cancelBtn: {
     marginTop: 6,
@@ -129,6 +132,6 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontSize: 16,
-    color: '#888',
+    color: dark.textSecondary,
   },
 });

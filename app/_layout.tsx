@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { useAuth } from '@/src/hooks/useAuth';
+import { dark } from '@/constants/theme';
 
 // ── Force RTL for Hebrew UI ──────────────────────────────────
 // Must run at module scope, before any component renders.
@@ -60,8 +61,8 @@ function RootLayoutNav() {
   // Show loading spinner while checking auth state
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2f95dc" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: dark.background }}>
+        <ActivityIndicator size="large" color={dark.accent} />
       </View>
     );
   }
@@ -73,6 +74,7 @@ function RootLayoutNav() {
           {session ? (
             <>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="item/[id]" options={{ presentation: 'card' }} />
               <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
             </>
           ) : (

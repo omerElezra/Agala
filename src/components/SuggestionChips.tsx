@@ -7,6 +7,7 @@ import {
   View,
 } from 'react-native';
 import type { SuggestionItem } from '../store/shoppingListStore';
+import { dark } from '@/constants/theme';
 
 interface SuggestionChipsProps {
   suggestions: SuggestionItem[];
@@ -41,20 +42,21 @@ export function SuggestionChips({ suggestions, onAccept }: SuggestionChipsProps)
   );
 }
 
-// ── Styles (RTL-safe) ────────────────────────────────────────
+// ── Styles (Dark mode, RTL-safe) ─────────────────────────────
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: dark.border,
   },
   header: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#888',
+    color: dark.textSecondary,
     paddingStart: 16,
     paddingEnd: 16,
     marginBottom: 8,
+    textAlign: 'right',
   },
   listContent: {
     paddingStart: 12,
@@ -64,22 +66,22 @@ const styles = StyleSheet.create({
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f4ff',
+    backgroundColor: dark.chip,
     borderRadius: 20,
     paddingVertical: 8,
     paddingStart: 14,
     paddingEnd: 14,
     borderWidth: 1,
-    borderColor: '#d0d8f0',
+    borderColor: dark.chipBorder,
     gap: 6,
   },
   chipText: {
     fontSize: 14,
-    color: '#333',
+    color: dark.chipText,
   },
   plusIcon: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2f95dc',
+    color: dark.accent,
   },
 });

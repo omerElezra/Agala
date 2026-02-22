@@ -54,7 +54,9 @@ interface ShoppingListState {
   undoCheckOff: (itemId: string) => void;
   snoozeItem: (itemId: string, days: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
-  addItem: (productId: string, householdId: string) => Promise<void>;
+  reactivateItem: (itemId: string) => void;
+  addItem: (productId: string, householdId: string, quantity?: number, product?: ProductRow | null) => 'added' | 'exists';
+  updateQuantity: (itemId: string, newQuantity: number) => Promise<void>;
   acceptSuggestion: (suggestion: SuggestionItem) => Promise<void>;
   flushOfflineQueue: () => Promise<void>;
 }
@@ -76,12 +78,12 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
   fetchList: async (householdId: string) => {
     set({ isLoading: true, householdId });
 
-    // 1. Shopping list items (active + expired-snoozed)
+    // 1. Shopping list items (active + purchased + expired-snoozed)
     const { data: listData, error: listError } = await supabase
       .from('shopping_list')
       .select('*, product:products(*)')
       .eq('household_id', householdId)
-      .in('status', ['active', 'snoozed'])
+      .in('status', ['active', 'snoozed', 'purchased'])
       .order('added_at', { ascending: false });
 
     if (listError) {
@@ -100,13 +102,13 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     const autoIds = new Set((rulesData ?? []).map((r) => r.product_id));
 
-    // 3. Filter: keep active items + snoozed items whose window expired
+    // 3. Filter: keep active + purchased + snoozed items whose window expired
     const allItems = (listData ?? []) as ShoppingItem[];
     const activeItems = allItems.filter((item) => {
       if (item.status === 'snoozed' && item.snooze_until) {
         return new Date(item.snooze_until) <= new Date();
       }
-      return item.status === 'active';
+      return item.status === 'active' || item.status === 'purchased';
     });
 
     set({
@@ -167,6 +169,15 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
           const state = get();
 
           if (payload.eventType === 'INSERT') {
+            // Skip if we already have this item by id OR by product_id
+            if (
+              state.items.some(
+                (i) => i.id === payload.new.id || i.product_id === payload.new.product_id,
+              )
+            ) {
+              return;
+            }
+
             const { data } = await supabase
               .from('shopping_list')
               .select('*, product:products(*)')
@@ -174,16 +185,35 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
               .single();
 
             if (data && (data as ShoppingItem).status === 'active') {
-              set({ items: [data as ShoppingItem, ...state.items] });
+              // Re-check after async fetch in case state changed
+              const current = get();
+              if (
+                !current.items.some(
+                  (i) =>
+                    i.id === (data as ShoppingItem).id ||
+                    i.product_id === (data as ShoppingItem).product_id,
+                )
+              ) {
+                set({ items: [data as ShoppingItem, ...current.items] });
+              }
             }
           }
 
           if (payload.eventType === 'UPDATE') {
             const updated = payload.new;
 
-            if (updated.status === 'purchased' || updated.status === 'snoozed') {
-              // Another household member checked off / snoozed → remove locally
+            if (updated.status === 'snoozed') {
+              // Another household member snoozed → remove locally
               set({ items: state.items.filter((i) => i.id !== updated.id) });
+            } else if (updated.status === 'purchased') {
+              // Another household member checked off → update status locally
+              set({
+                items: state.items.map((i) =>
+                  i.id === updated.id
+                    ? { ...i, status: 'purchased' as const, purchased_at: updated.purchased_at }
+                    : i,
+                ),
+              });
             } else if (updated.status === 'active') {
               // Un-snooze or re-activation — fetch with product join
               const { data } = await supabase
@@ -271,6 +301,41 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     }
   },
 
+  // ── Reactivate a purchased item (move back to cart) ────────
+  reactivateItem: (itemId: string) => {
+    const state = get();
+
+    // Optimistic: set status back to active immediately
+    set({
+      items: state.items.map((i) =>
+        i.id === itemId
+          ? { ...i, status: 'active' as const, purchased_at: null }
+          : i,
+      ),
+    });
+
+    // Sync with DB in background
+    (async () => {
+      const { error } = await supabase
+        .from('shopping_list')
+        .update({ status: 'active', purchased_at: null })
+        .eq('id', itemId);
+
+      if (error) {
+        console.error('[store] reactivateItem error:', error.message);
+        // Revert on failure
+        const current = get();
+        set({
+          items: current.items.map((i) =>
+            i.id === itemId
+              ? { ...i, status: 'purchased' as const }
+              : i,
+          ),
+        });
+      }
+    })();
+  },
+
   // ── Snooze an item ────────────────────────────────────────
   snoozeItem: async (itemId: string, days: number) => {
     const state = get();
@@ -294,27 +359,125 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     await supabase.from('shopping_list').delete().eq('id', itemId);
   },
 
-  // ── Add item manually ─────────────────────────────────────
-  addItem: async (productId: string, householdId: string) => {
-    const { data, error } = await supabase
-      .from('shopping_list')
-      .insert({
-        household_id: householdId,
-        product_id: productId,
-        quantity: 1,
-        status: 'active',
-      })
-      .select('*, product:products(*)')
-      .single();
-
-    if (error) {
-      console.error('[store] addItem error:', error.message);
-      return;
+  // ── Add item manually (skip if same product already active) ──
+  addItem: (productId: string, householdId: string, quantity: number = 1, product: ProductRow | null = null): 'added' | 'exists' => {
+    // 1. Check local state — if already active, return 'exists'
+    const state = get();
+    if (state.items.some((i) => i.product_id === productId && i.status === 'active')) {
+      return 'exists';
     }
 
-    if (data) {
-      const state = get();
-      set({ items: [data as ShoppingItem, ...state.items] });
+    // 2. Optimistic: add a placeholder item immediately (instant UI)
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const now = new Date().toISOString();
+    const optimisticItem: ShoppingItem = {
+      id: tempId,
+      household_id: householdId,
+      product_id: productId,
+      quantity,
+      status: 'active',
+      added_at: now,
+      purchased_at: null,
+      snooze_until: null,
+      product,
+    };
+    set({ items: [optimisticItem, ...state.items] });
+
+    // 3. Background: check DB + insert (fire-and-forget)
+    (async () => {
+      try {
+        // Check if another device already added it
+        const { data: dbExisting } = await supabase
+          .from('shopping_list')
+          .select('id')
+          .eq('household_id', householdId)
+          .eq('product_id', productId)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (dbExisting) {
+          // Already exists in DB — replace temp item with real one
+          const { data: full } = await supabase
+            .from('shopping_list')
+            .select('*, product:products(*)')
+            .eq('id', dbExisting.id)
+            .single();
+
+          const current = get();
+          set({
+            items: current.items
+              .filter((i) => i.id !== tempId)
+              .filter((i) => i.id !== dbExisting.id)
+              .concat(full ? [full as ShoppingItem] : []),
+          });
+          return;
+        }
+
+        // Insert new row
+        const { data, error } = await supabase
+          .from('shopping_list')
+          .insert({
+            household_id: householdId,
+            product_id: productId,
+            quantity,
+            status: 'active',
+          })
+          .select('*, product:products(*)')
+          .single();
+
+        if (error) {
+          console.error('[store] addItem error:', error.message);
+          // Remove optimistic item on failure
+          const current = get();
+          set({ items: current.items.filter((i) => i.id !== tempId) });
+          return;
+        }
+
+        // Replace temp item with real DB item
+        if (data) {
+          const current = get();
+          set({
+            items: current.items.map((i) =>
+              i.id === tempId ? (data as ShoppingItem) : i,
+            ),
+          });
+        }
+      } catch (err) {
+        console.error('[store] addItem unexpected error:', err);
+        const current = get();
+        set({ items: current.items.filter((i) => i.id !== tempId) });
+      }
+    })();
+
+    return 'added';
+  },
+
+  // ── Update quantity on an existing item ─────────────────────
+  updateQuantity: async (itemId: string, newQuantity: number) => {
+    if (newQuantity < 1) return;
+
+    // Optimistic local update
+    const state = get();
+    set({
+      items: state.items.map((i) =>
+        i.id === itemId ? { ...i, quantity: newQuantity } : i,
+      ),
+    });
+
+    const { error } = await supabase
+      .from('shopping_list')
+      .update({ quantity: newQuantity })
+      .eq('id', itemId);
+
+    if (error) {
+      console.error('[store] updateQuantity error:', error.message);
+      // Revert on failure
+      const current = get();
+      set({
+        items: current.items.map((i) =>
+          i.id === itemId ? { ...i, quantity: state.items.find((o) => o.id === itemId)?.quantity ?? newQuantity } : i,
+        ),
+      });
     }
   },
 
@@ -327,8 +490,8 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     // Optimistic: remove from suggestions
     set({ suggestions: state.suggestions.filter((s) => s.id !== suggestion.id) });
 
-    // Delegate to addItem (handles insert + local state update)
-    await get().addItem(suggestion.productId, householdId);
+    // Delegate to addItem (now synchronous + optimistic)
+    get().addItem(suggestion.productId, householdId, 1, suggestion.product);
   },
 
   // ── Flush offline queue ─────────────────────────────────────

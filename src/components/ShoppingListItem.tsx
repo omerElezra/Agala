@@ -7,7 +7,10 @@ import {
   View,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import { useRouter } from 'expo-router';
+import { dark } from '@/constants/theme';
 import type { ShoppingItem } from '../store/shoppingListStore';
+import { useShoppingListStore } from '../store/shoppingListStore';
 
 interface ShoppingListItemProps {
   item: ShoppingItem;
@@ -25,6 +28,9 @@ export function ShoppingListItem({
   onSwipe,
 }: ShoppingListItemProps) {
   const swipeableRef = useRef<Swipeable>(null);
+  const router = useRouter();
+  const updateQuantity = useShoppingListStore((s) => s.updateQuantity);
+  const reactivateItem = useShoppingListStore((s) => s.reactivateItem);
   const isPurchased = item.status === 'purchased';
   const productName = item.product?.name ?? '';
   const category = item.product?.category ?? '';
@@ -66,7 +72,9 @@ export function ShoppingListItem({
         onPress={() => {
           if (isPurchased && isPending) {
             onUndo(item.id);
-          } else if (!isPurchased) {
+          } else if (isPurchased) {
+            reactivateItem(item.id);
+          } else {
             onCheckOff(item.id);
           }
         }}
@@ -75,26 +83,54 @@ export function ShoppingListItem({
         {isPurchased && <Text style={styles.checkmark}>✓</Text>}
       </TouchableOpacity>
 
-      {/* Product info */}
-      <View style={styles.info}>
+      {/* Quantity +/- controls (only for active items) */}
+      {!isPurchased && (
+        <View style={styles.qtyControls}>
+          <TouchableOpacity
+            style={styles.qtyBtn}
+            onPress={() => updateQuantity(item.id, item.quantity - 1)}
+            activeOpacity={0.6}
+            disabled={item.quantity <= 1}
+          >
+            <Text style={[styles.qtyBtnText, item.quantity <= 1 && styles.qtyBtnDisabled]}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.qtyValue}>{item.quantity}</Text>
+          <TouchableOpacity
+            style={styles.qtyBtn}
+            onPress={() => updateQuantity(item.id, item.quantity + 1)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.qtyBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Product info — tap to open detail page */}
+      <TouchableOpacity
+        style={styles.info}
+        onPress={() => router.push(`/item/${item.id}`)}
+        activeOpacity={0.7}
+      >
         <Text style={[styles.name, isPurchased && styles.nameStruck]}>
           {productName}
         </Text>
-        {(category !== '' || item.quantity > 1) && (
+        {category !== '' && (
           <View style={styles.meta}>
-            {category !== '' && <Text style={styles.category}>{category}</Text>}
-            {item.quantity > 1 && (
-              <Text style={styles.qty}>×{item.quantity}</Text>
-            )}
+            <Text style={styles.category}>{category}</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
 
       {/* Undo button (visible only during the 5 s debounce window) */}
       {isPurchased && isPending && (
         <TouchableOpacity style={styles.undoBtn} onPress={() => onUndo(item.id)}>
           <Text style={styles.undoText}>ביטול</Text>
         </TouchableOpacity>
+      )}
+
+      {/* Show quantity badge for purchased items */}
+      {isPurchased && item.quantity > 1 && (
+        <Text style={styles.purchasedQty}>×{item.quantity}</Text>
       )}
     </View>
   );
@@ -118,7 +154,7 @@ export function ShoppingListItem({
   );
 }
 
-// ── Styles (RTL-safe: marginStart/End, paddingStart/End) ─────
+// ── Styles (Dark mode, RTL-safe) ─────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -126,26 +162,26 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingStart: 16,
     paddingEnd: 16,
-    backgroundColor: '#fff',
+    backgroundColor: dark.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    borderBottomColor: dark.border,
   },
   purchasedBg: {
-    backgroundColor: '#f9fdf9',
+    backgroundColor: dark.successBg,
   },
   checkbox: {
     width: 28,
     height: 28,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: '#ccc',
+    borderColor: dark.checkbox,
     alignItems: 'center',
     justifyContent: 'center',
     marginEnd: 12,
   },
   checkboxChecked: {
-    backgroundColor: '#4caf50',
-    borderColor: '#4caf50',
+    backgroundColor: dark.checkboxChecked,
+    borderColor: dark.checkboxChecked,
   },
   checkmark: {
     color: '#fff',
@@ -157,11 +193,12 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 16,
-    color: '#222',
+    color: dark.text,
+    textAlign: 'right',
   },
   nameStruck: {
     textDecorationLine: 'line-through',
-    color: '#999',
+    color: dark.textMuted,
   },
   meta: {
     flexDirection: 'row',
@@ -170,28 +207,68 @@ const styles = StyleSheet.create({
   },
   category: {
     fontSize: 12,
-    color: '#888',
+    color: dark.textSecondary,
+    textAlign: 'right',
   },
   qty: {
     fontSize: 12,
-    color: '#2f95dc',
+    color: dark.accent,
     fontWeight: '600',
+  },
+  qtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: dark.surfaceAlt,
+    borderRadius: 8,
+    marginEnd: 10,
+    paddingHorizontal: 2,
+    paddingVertical: 2,
+  },
+  qtyBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnText: {
+    fontSize: 18,
+    color: dark.accent,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  qtyBtnDisabled: {
+    color: dark.textMuted,
+  },
+  qtyValue: {
+    fontSize: 14,
+    color: dark.text,
+    fontWeight: '700',
+    minWidth: 22,
+    textAlign: 'center',
+  },
+  purchasedQty: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    fontWeight: '600',
+    marginStart: 8,
   },
   undoBtn: {
     paddingStart: 12,
     paddingEnd: 12,
     paddingVertical: 6,
-    backgroundColor: '#fff3e0',
+    backgroundColor: dark.warningBg,
     borderRadius: 12,
   },
   undoText: {
     fontSize: 13,
-    color: '#e65100',
+    color: dark.warning,
     fontWeight: '600',
+    textAlign: 'right',
   },
-  // ── Swipe action (orange strip) ────────────────────────────
+  // ── Swipe action ──────────────────────────────────────────
   swipeAction: {
-    backgroundColor: '#ff9800',
+    backgroundColor: dark.swipeOrange,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,

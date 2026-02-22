@@ -7,6 +7,9 @@ import type { Database } from '../types/database';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
+console.log('[Supabase] URL:', supabaseUrl ? supabaseUrl.substring(0, 30) + '…' : 'MISSING');
+console.log('[Supabase] Key:', supabaseAnonKey ? supabaseAnonKey.substring(0, 10) + '… (len=' + supabaseAnonKey.length + ')' : 'MISSING');
+
 // During web SSR, `window` is not defined so AsyncStorage fails.
 // Use a no-op storage adapter for the server pass.
 const noopStorage = {
