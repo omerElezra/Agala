@@ -5,7 +5,9 @@
 
 -- 0. Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-CREATE EXTENSION IF NOT EXISTS "pg_cron";
+-- NOTE: pg_cron is only available on Supabase Pro plan.
+-- On Free plan, use GitHub Actions or external cron instead.
+-- CREATE EXTENSION IF NOT EXISTS "pg_cron";
 
 -- =============================================================
 -- 1. TABLES

@@ -136,6 +136,11 @@ $$;
 
 -- ── 4. Attach triggers ──────────────────────────────────────
 
+-- Drop existing triggers first (safe to re-run)
+DROP TRIGGER IF EXISTS trg_confidence_penalty_on_snooze ON public.shopping_list;
+DROP TRIGGER IF EXISTS trg_confidence_penalty_on_delete ON public.shopping_list;
+DROP TRIGGER IF EXISTS trg_confidence_bonus_on_accept ON public.shopping_list;
+
 -- Snooze penalty (on UPDATE)
 CREATE TRIGGER trg_confidence_penalty_on_snooze
   AFTER UPDATE ON public.shopping_list
