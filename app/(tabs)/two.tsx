@@ -340,9 +340,13 @@ export default function HistoryScreen() {
 
           return (
             <View style={styles.itemRow}>
-              <View style={styles.itemBadge}>
-                <Text style={styles.itemBadgeText}>🛒</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => handleDeleteTransaction(row.id)}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.deleteBtnText}>🗑️</Text>
+              </TouchableOpacity>
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{productName} {row.quantity > 1 && (<Text style={styles.itemQty}> × {row.quantity}</Text>)}</Text>
                 <View style={styles.itemMeta}>
@@ -354,13 +358,9 @@ export default function HistoryScreen() {
                   )}
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleDeleteTransaction(row.id)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.deleteBtnText}>🗑️</Text>
-              </TouchableOpacity>
+              <View style={styles.itemBadge}>
+                <Text style={styles.itemBadgeText}>🛒</Text>
+              </View>
             </View>
           );
         }}
@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   filterBar: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
     backgroundColor: dark.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginEnd: 10,
+    marginStart: 10,
   },
   itemBadgeText: {
     fontSize: 14,
