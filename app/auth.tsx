@@ -128,6 +128,7 @@ export default function AuthScreen() {
           <Text style={styles.subtitle}>
             {mode === 'login' ? 'התחברות לחשבון' : 'יצירת חשבון חדש'}
           </Text>
+          <Text style={styles.byline}>by Omer Elezra</Text>
         </View>
 
         {/* Inline Banner (replaces Alert.alert for web compatibility) */}
@@ -278,6 +279,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.textSecondary,
     fontWeight: '500',
+  },
+  byline: {
+    fontSize: 12,
+    color: dark.textMuted,
+    fontWeight: '400',
+    marginTop: 8,
+    letterSpacing: 0.5,
   },
   // ── Banner (inline error / success / info) ─────────────────
   banner: {

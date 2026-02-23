@@ -8,6 +8,7 @@
 
 [![Platform](https://img.shields.io/badge/פלטפורמה-iOS%20%7C%20Android%20%7C%20Web-lightgrey)]()
 [![Hebrew](https://img.shields.io/badge/שפה-עברית-blue)]()
+[![Author](https://img.shields.io/badge/יוצר-Omer%20Elezra-8B9FE8)](https://github.com/omerElezra)
 
 </div>
 
@@ -150,5 +151,9 @@
 **נבנה עם ❤️ עבור משפחות ישראליות**
 
 עגלה — קניות חכמות, יחד.
+
+---
+
+**עוצב ופותח על ידי [Omer Elezra](https://github.com/omerElezra)**
 
 </div>

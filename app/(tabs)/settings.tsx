@@ -381,6 +381,14 @@ export default function SettingsScreen() {
             <Text style={styles.label}>גרסה</Text>
             <Text style={styles.value}>1.0.0</Text>
           </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>יוצר</Text>
+            <Text style={styles.value}>Omer Elezra</Text>
+          </View>
+          <View style={styles.row}>
+            <Text style={styles.label}>עיצוב ופיתוח</Text>
+            <Text style={[styles.value, { color: dark.accent }]}>@omerElezra</Text>
+          </View>
         </View>
 
         {/* ── Sign Out ────────────────────────────────────────── */}

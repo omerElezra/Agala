@@ -281,6 +281,14 @@ eas submit --platform android
 
 ---
 
+## Author
+
+**Omer Elezra** — Creator, Designer & Developer
+
+- GitHub: [@omerElezra](https://github.com/omerElezra)
+
+---
+
 ## License
 
-This project is private. All rights reserved.
+This project is private. All rights reserved. © Omer Elezra
