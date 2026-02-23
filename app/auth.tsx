@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -120,8 +121,10 @@ export default function AuthScreen() {
       >
         {/* Logo / Title */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>🛒</Text>
-          <Text style={styles.title}>עגלה</Text>
+          <Image
+            source={require('@/assets/images/icon.png')}
+            style={styles.logoImage}
+          />
           <Text style={styles.subtitle}>
             {mode === 'login' ? 'התחברות לחשבון' : 'יצירת חשבון חדש'}
           </Text>
@@ -168,7 +171,7 @@ export default function AuthScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             textContentType="emailAddress"
-            textAlign="left"
+            textAlign="right"
           />
 
           <TextInput
@@ -180,7 +183,7 @@ export default function AuthScreen() {
             secureTextEntry
             autoCapitalize="none"
             textContentType={mode === 'signup' ? 'newPassword' : 'password'}
-            textAlign="left"
+            textAlign="right"
           />
 
           <TouchableOpacity
@@ -247,26 +250,34 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     justifyContent: 'center',
-    paddingStart: 24,
-    paddingEnd: 24,
+    paddingStart: 28,
+    paddingEnd: 28,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 44,
   },
   emoji: {
-    fontSize: 64,
-    marginBottom: 8,
+    fontSize: 72,
+    marginBottom: 10,
+  },
+  logoImage: {
+    width: 280,
+    height: 280,
+    borderRadius: 20,
+    marginBottom: 2,
   },
   title: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: dark.text,
-    marginBottom: 4,
+    fontSize: 40,
+    fontWeight: '800',
+    color: dark.accent,
+    marginBottom: 6,
+    letterSpacing: 1,
   },
   subtitle: {
     fontSize: 16,
     color: dark.textSecondary,
+    fontWeight: '500',
   },
   // ── Banner (inline error / success / info) ─────────────────
   banner: {
@@ -275,24 +286,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingStart: 16,
     paddingEnd: 12,
-    paddingTop: 12,
-    paddingBottom: 12,
-    borderRadius: 12,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderRadius: 14,
     marginBottom: 16,
   },
   bannerError: {
     backgroundColor: dark.errorBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.error,
   },
   bannerSuccess: {
     backgroundColor: dark.successBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.success,
   },
   bannerInfo: {
     backgroundColor: dark.infoBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.info,
   },
   bannerText: {
@@ -301,6 +312,7 @@ const styles = StyleSheet.create({
     color: dark.text,
     textAlign: 'right',
     lineHeight: 20,
+    fontWeight: '500',
   },
   bannerClose: {
     fontSize: 16,
@@ -309,27 +321,32 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   form: {
-    gap: 14,
+    gap: 16,
   },
   input: {
     backgroundColor: dark.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.inputBorder,
-    borderRadius: 12,
-    paddingStart: 16,
-    paddingEnd: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
+    borderRadius: 14,
+    paddingStart: 18,
+    paddingEnd: 18,
+    paddingTop: 16,
+    paddingBottom: 16,
     fontSize: 16,
     color: dark.inputText,
   },
   button: {
     backgroundColor: dark.accent,
-    borderRadius: 12,
-    paddingTop: 16,
-    paddingBottom: 16,
+    borderRadius: 14,
+    paddingTop: 18,
+    paddingBottom: 18,
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 8,
+    shadowColor: dark.fabShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 6,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -337,14 +354,15 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   toggleButton: {
-    marginTop: 20,
+    marginTop: 24,
     alignItems: 'center',
   },
   toggleText: {
-    color: dark.accent,
+    color: dark.secondary,
     fontSize: 15,
+    fontWeight: '600',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   Animated,
   StyleSheet,
@@ -14,17 +14,13 @@ import { useShoppingListStore } from '../store/shoppingListStore';
 
 interface ShoppingListItemProps {
   item: ShoppingItem;
-  isPending: boolean; // true during the 5 s undo window
   onCheckOff: (itemId: string) => void;
-  onUndo: (itemId: string) => void;
   onSwipe: (itemId: string) => void;
 }
 
 export function ShoppingListItem({
   item,
-  isPending,
   onCheckOff,
-  onUndo,
   onSwipe,
 }: ShoppingListItemProps) {
   const swipeableRef = useRef<Swipeable>(null);
@@ -34,6 +30,65 @@ export function ShoppingListItem({
   const isPurchased = item.status === 'purchased';
   const productName = item.product?.name ?? '';
   const category = item.product?.category ?? '';
+
+  // ── Animated values ────────────────────────────────────────
+  const flashAnim = useRef(new Animated.Value(0)).current;   // 0 = normal, 1 = flash
+  const [flashing, setFlashing] = useState(false);
+  const [reactivateFlashing, setReactivateFlashing] = useState(false);
+
+  // Row bg color interpolation: normal → green flash (active items)
+  const rowBgColor = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [dark.surface, '#2ecc7144'],          // subtle green flash
+  });
+
+  // Row bg color interpolation: purchased → accent flash (reactivate)
+  const reactivateRowBg = flashAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [dark.purchasedBg, '#8B9FE844'],      // subtle accent flash
+  });
+
+  /** Quick green flash → checkOff */
+  const animateCheckOff = useCallback(() => {
+    setFlashing(true);
+    Animated.sequence([
+      Animated.timing(flashAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: false, // need for backgroundColor
+      }),
+      Animated.timing(flashAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      setFlashing(false);
+      flashAnim.setValue(0);
+      onCheckOff(item.id);
+    });
+  }, [item.id, onCheckOff, flashAnim]);
+
+  /** Quick accent flash → reactivate (add back to cart) */
+  const animateReactivate = useCallback(() => {
+    setReactivateFlashing(true);
+    Animated.sequence([
+      Animated.timing(flashAnim, {
+        toValue: 1,
+        duration: 120,
+        useNativeDriver: false,
+      }),
+      Animated.timing(flashAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }),
+    ]).start(() => {
+      setReactivateFlashing(false);
+      flashAnim.setValue(0);
+      reactivateItem(item.id);
+    });
+  }, [item.id, reactivateItem, flashAnim]);
 
   // ── Swipe action (revealed after threshold) ────────────────
   const renderRightActions = (
@@ -65,22 +120,35 @@ export function ShoppingListItem({
 
   // ── Inner content ──────────────────────────────────────────
   const content = (
-    <View style={[styles.container, isPurchased && styles.purchasedBg]}>
+    <Animated.View
+      style={[
+        styles.container,
+        isPurchased && !reactivateFlashing && styles.purchasedBg,
+        isPurchased && reactivateFlashing && { backgroundColor: reactivateRowBg, opacity: 1 },
+        !isPurchased && { backgroundColor: rowBgColor },
+      ]}
+    >
       {/* Circular checkbox */}
       <TouchableOpacity
-        style={[styles.checkbox, isPurchased && styles.checkboxChecked]}
+        style={[
+          styles.checkbox,
+          flashing && styles.checkboxFlash,
+          reactivateFlashing && styles.checkboxReactivateFlash,
+        ]}
         onPress={() => {
-          if (isPurchased && isPending) {
-            onUndo(item.id);
-          } else if (isPurchased) {
-            reactivateItem(item.id);
+          if (isPurchased) {
+            animateReactivate();
           } else {
-            onCheckOff(item.id);
+            animateCheckOff();
           }
         }}
         activeOpacity={0.6}
       >
-        {isPurchased && <Text style={styles.checkmark}>✓</Text>}
+        {isPurchased
+          ? <Text style={[styles.checkmark, reactivateFlashing && styles.reactivateCheck]}>+</Text>
+          : flashing
+            ? <Text style={styles.flashCheck}>✓</Text>
+            : null}
       </TouchableOpacity>
 
       {/* Quantity +/- controls (only for active items) */}
@@ -111,7 +179,7 @@ export function ShoppingListItem({
         onPress={() => router.push(`/item/${item.id}`)}
         activeOpacity={0.7}
       >
-        <Text style={[styles.name, isPurchased && styles.nameStruck]}>
+        <Text style={[styles.name, isPurchased && styles.namePurchased]}>
           {productName}
         </Text>
         {category !== '' && (
@@ -121,18 +189,11 @@ export function ShoppingListItem({
         )}
       </TouchableOpacity>
 
-      {/* Undo button (visible only during the 5 s debounce window) */}
-      {isPurchased && isPending && (
-        <TouchableOpacity style={styles.undoBtn} onPress={() => onUndo(item.id)}>
-          <Text style={styles.undoText}>ביטול</Text>
-        </TouchableOpacity>
-      )}
-
       {/* Show quantity badge for purchased items */}
       {isPurchased && item.quantity > 1 && (
         <Text style={styles.purchasedQty}>×{item.quantity}</Text>
       )}
-    </View>
+    </Animated.View>
   );
 
   // Purchased items are not swipeable
@@ -159,7 +220,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingStart: 16,
     paddingEnd: 16,
     backgroundColor: dark.surface,
@@ -167,13 +228,14 @@ const styles = StyleSheet.create({
     borderBottomColor: dark.border,
   },
   purchasedBg: {
-    backgroundColor: dark.successBg,
+    backgroundColor: dark.purchasedBg,
+    opacity: 0.6,
   },
   checkbox: {
-    width: 28,
+    width: 38,
     height: 28,
     borderRadius: 14,
-    borderWidth: 2,
+    borderWidth: 3.5,
     borderColor: dark.checkbox,
     alignItems: 'center',
     justifyContent: 'center',
@@ -184,50 +246,72 @@ const styles = StyleSheet.create({
     borderColor: dark.checkboxChecked,
   },
   checkmark: {
-    color: '#fff',
+    color: dark.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  checkboxFlash: {
+    borderColor: '#2ecc71',
+    backgroundColor: '#2ecc7133',
+  },
+  checkboxReactivateFlash: {
+    borderColor: dark.accent,
+    backgroundColor: dark.accent + '33',
+  },
+  flashCheck: {
+    color: '#2ecc71',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  reactivateCheck: {
+    color: dark.accent,
+    fontSize: 16,
+    fontWeight: '800',
   },
   info: {
-    flex: 1,
+    flex: 3,
   },
   name: {
     fontSize: 16,
+    fontWeight: '600',
     color: dark.text,
     textAlign: 'right',
   },
-  nameStruck: {
-    textDecorationLine: 'line-through',
-    color: dark.textMuted,
+  namePurchased: {
+    color: dark.textOnAccent,
+    fontWeight: '400',
+    fontStyle: 'italic',
   },
   meta: {
     flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 8,
-    marginTop: 2,
+    marginTop: 3,
   },
   category: {
     fontSize: 12,
-    color: dark.textSecondary,
     textAlign: 'right',
+    color: dark.textSecondary,
+    fontWeight: '500',
   },
   qty: {
     fontSize: 12,
     color: dark.accent,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   qtyControls: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: dark.surfaceAlt,
-    borderRadius: 8,
+    borderRadius: 10,
     marginEnd: 10,
-    paddingHorizontal: 2,
-    paddingVertical: 2,
+    paddingHorizontal: 3,
+    paddingVertical: 3,
   },
   qtyBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -241,30 +325,17 @@ const styles = StyleSheet.create({
     color: dark.textMuted,
   },
   qtyValue: {
-    fontSize: 14,
+    fontSize: 15,
     color: dark.text,
-    fontWeight: '700',
-    minWidth: 22,
+    fontWeight: '800',
+    minWidth: 24,
     textAlign: 'center',
   },
   purchasedQty: {
     fontSize: 13,
     color: dark.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
     marginStart: 8,
-  },
-  undoBtn: {
-    paddingStart: 12,
-    paddingEnd: 12,
-    paddingVertical: 6,
-    backgroundColor: dark.warningBg,
-    borderRadius: 12,
-  },
-  undoText: {
-    fontSize: 13,
-    color: dark.warning,
-    fontWeight: '600',
-    textAlign: 'right',
   },
   // ── Swipe action ──────────────────────────────────────────
   swipeAction: {
@@ -279,7 +350,7 @@ const styles = StyleSheet.create({
   swipeLabel: {
     color: '#fff',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     marginTop: 4,
   },
 });

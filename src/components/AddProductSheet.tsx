@@ -39,7 +39,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
         .eq('household_id', householdId)
         .eq('status', 'purchased')
         .order('purchased_at', { ascending: false })
-        .limit(20);
+        .limit(200);
 
       if (data) {
         // Deduplicate by product id and filter nulls
@@ -210,7 +210,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
       {/* Search input */}
       <TextInput
         style={styles.input}
-        placeholder="חפש מוצר..."
+        placeholder="...חפש מוצר"
         placeholderTextColor={dark.placeholder}
         value={query}
         onChangeText={setQuery}
@@ -231,7 +231,6 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
         <View style={styles.qtySection}>
           <Text style={styles.qtyProductName}>{selectedProduct.name}</Text>
           <View style={styles.qtyRow}>
-            <Text style={styles.qtyLabel}>כמות:</Text>
             <TouchableOpacity
               style={styles.qtyBtn}
               onPress={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -306,10 +305,10 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
             style={styles.resultRow}
             onPress={() => handleSelect(item)}
           >
-            <Text style={styles.resultName}>{item.name}</Text>
             {item.category && (
               <Text style={styles.resultCat}>{item.category}</Text>
             )}
+            <Text style={styles.resultName}>{item.name}</Text>
           </TouchableOpacity>
         )}
         ListFooterComponent={
@@ -342,51 +341,55 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingStart: 16,
     paddingEnd: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 19,
+    fontWeight: '800',
     color: dark.text,
     textAlign: 'right',
   },
   closeBtn: {
-    fontSize: 20,
+    fontSize: 22,
     color: dark.textSecondary,
+    fontWeight: '300',
   },
   input: {
     marginStart: 16,
     marginEnd: 16,
     marginVertical: 16,
-    padding: 12,
+    padding: 14,
     fontSize: 16,
     backgroundColor: dark.input,
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
     borderColor: dark.inputBorder,
     color: dark.inputText,
     textAlign: 'right',
   },
   searching: {
     textAlign: 'center',
-    color: dark.textSecondary,
+    color: dark.secondary,
     fontSize: 14,
     marginBottom: 8,
+    fontWeight: '600',
   },
   existsBanner: {
     backgroundColor: dark.warningBg,
-    borderRadius: 10,
-    paddingVertical: 10,
+    borderRadius: 14,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     marginHorizontal: 16,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: dark.warning + '44',
   },
   existsText: {
     color: dark.warning,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'right',
   },
   list: {
@@ -398,74 +401,79 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: dark.border,
   },
   resultName: {
     fontSize: 16,
     color: dark.text,
+    fontWeight: '600',
     textAlign: 'right',
   },
   resultCat: {
     fontSize: 13,
     color: dark.textSecondary,
+    fontWeight: '500',
     textAlign: 'right',
   },
   createBtn: {
     padding: 16,
     alignItems: 'center',
     backgroundColor: dark.successBg,
-    borderRadius: 10,
-    marginTop: 8,
+    borderRadius: 14,
+    marginTop: 10,
     marginBottom: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.success,
   },
   createBtnText: {
     fontSize: 15,
     color: dark.success,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   recentSection: {
     paddingStart: 16,
     paddingEnd: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   recentTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: dark.textSecondary,
-    marginBottom: 10,
+    fontSize: 13,
+    fontWeight: '800',
+    color: dark.secondary,
+    marginBottom: 12,
     textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   recentGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 10,
   },
   recentChip: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: dark.chip,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingStart: 14,
-    paddingEnd: 10,
-    borderWidth: 1,
+    borderRadius: 22,
+    paddingVertical: 9,
+    paddingStart: 16,
+    paddingEnd: 12,
+    borderWidth: 1.5,
     borderColor: dark.chipBorder,
-    gap: 6,
+    gap: 8,
   },
   recentChipText: {
     fontSize: 14,
     color: dark.chipText,
+    fontWeight: '500',
   },
   recentPlus: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: dark.accent,
+    fontSize: 17,
+    fontWeight: '800',
+    color: dark.secondary,
   },
   hintText: {
     textAlign: 'center',
@@ -479,13 +487,13 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   noResultsEmoji: {
-    fontSize: 36,
-    marginBottom: 8,
+    fontSize: 40,
+    marginBottom: 10,
   },
   noResultsText: {
     fontSize: 15,
     color: dark.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   noResultsHint: {
     fontSize: 13,
@@ -496,34 +504,34 @@ const styles = StyleSheet.create({
     marginStart: 16,
     marginEnd: 16,
     marginBottom: 12,
-    padding: 16,
+    padding: 18,
     backgroundColor: dark.surface,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: dark.accent,
   },
   qtyProductName: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: dark.text,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   qtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    gap: 18,
   },
   qtyLabel: {
     fontSize: 15,
     color: dark.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   qtyBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: dark.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -531,41 +539,42 @@ const styles = StyleSheet.create({
   qtyBtnText: {
     fontSize: 20,
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 22,
   },
   qtyValue: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
     color: dark.text,
-    minWidth: 30,
+    minWidth: 32,
     textAlign: 'center',
   },
   qtyActions: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
-    marginTop: 14,
+    gap: 14,
+    marginTop: 16,
   },
   qtyConfirmBtn: {
-    paddingVertical: 10,
-    paddingStart: 20,
-    paddingEnd: 20,
+    paddingVertical: 12,
+    paddingStart: 22,
+    paddingEnd: 22,
     backgroundColor: dark.success,
-    borderRadius: 10,
+    borderRadius: 14,
   },
   qtyConfirmText: {
     color: '#fff',
-    fontWeight: '600',
+    fontWeight: '700',
     fontSize: 15,
   },
   qtyCancelBtn: {
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingStart: 16,
     paddingEnd: 16,
   },
   qtyCancelText: {
     color: dark.textMuted,
     fontSize: 14,
+    fontWeight: '500',
   },
 });

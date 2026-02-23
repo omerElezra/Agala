@@ -135,6 +135,43 @@ export interface Database {
           },
         ];
       };
+      purchase_history: {
+        Row: {
+          id: string;
+          household_id: string;
+          product_id: string;
+          quantity: number;
+          purchased_at: string;
+        };
+        Insert: {
+          id?: string;
+          household_id: string;
+          product_id: string;
+          quantity?: number;
+          purchased_at?: string;
+        };
+        Update: {
+          id?: string;
+          household_id?: string;
+          product_id?: string;
+          quantity?: number;
+          purchased_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'purchase_history_household_id_fkey';
+            columns: ['household_id'];
+            referencedRelation: 'households';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'purchase_history_product_id_fkey';
+            columns: ['product_id'];
+            referencedRelation: 'products';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       household_inventory_rules: {
         Row: {
           id: string;

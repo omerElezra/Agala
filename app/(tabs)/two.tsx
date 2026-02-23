@@ -5,7 +5,6 @@ import {
   Modal,
   Platform,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,14 +12,27 @@ import {
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { supabase } from '@/src/lib/supabase';
 import { useAuth } from '@/src/hooks/useAuth';
-import type { ShoppingItem } from '@/src/store/shoppingListStore';
 import { dark } from '@/constants/theme';
+import type { Database } from '@/src/types/database';
 
 // ── Types ────────────────────────────────────────────────────
+type ProductRow = Database['public']['Tables']['products']['Row'];
+
+/** A single purchase transaction from purchase_history */
+interface PurchaseTransaction {
+  id: string;
+  household_id: string;
+  product_id: string;
+  quantity: number;
+  purchased_at: string;
+  product: ProductRow | null;
+}
+
 type ListRow =
-  | ShoppingItem
+  | PurchaseTransaction
   | { type: 'header'; title: string; key: string };
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
@@ -49,7 +61,7 @@ function formatDateHebrew(dateStr: string): string {
 export default function HistoryScreen() {
   const { user, isLoading: authLoading } = useAuth();
 
-  const [purchasedItems, setPurchasedItems] = useState<ShoppingItem[]>([]);
+  const [transactions, setTransactions] = useState<PurchaseTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
@@ -58,7 +70,7 @@ export default function HistoryScreen() {
 
   // ── Filter items by date ───────────────────────────────────
   const filteredItems = useMemo(() => {
-    if (dateFilter === 'all') return purchasedItems;
+    if (dateFilter === 'all') return transactions;
 
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -81,36 +93,61 @@ export default function HistoryScreen() {
         break;
     }
 
-    return purchasedItems.filter((item) => {
+    return transactions.filter((item) => {
       if (!item.purchased_at) return false;
       return new Date(item.purchased_at) >= cutoff;
     });
-  }, [purchasedItems, dateFilter, customDate]);
+  }, [transactions, dateFilter, customDate]);
 
-  // ── Fetch purchased items ──────────────────────────────────
+  // ── Fetch purchase history (transaction log) ────────────────
   const fetchHistory = useCallback(async () => {
     if (!user?.household_id) return;
 
     const { data, error } = await supabase
-      .from('shopping_list')
+      .from('purchase_history')
       .select('*, product:products(*)')
       .eq('household_id', user.household_id)
-      .eq('status', 'purchased')
       .order('purchased_at', { ascending: false })
-      .limit(100);
+      .limit(200);
 
     if (error) {
       console.error('[history] fetch error:', error.message);
     } else {
-      setPurchasedItems((data ?? []) as ShoppingItem[]);
+      setTransactions((data ?? []) as PurchaseTransaction[]);
     }
   }, [user?.household_id]);
+
+  // ── Delete a purchase history record ───────────────────────
+  const handleDeleteTransaction = useCallback(async (id: string) => {
+    // Optimistic: remove from local state
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+
+    const { error } = await supabase
+      .from('purchase_history')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[history] delete error:', error.message);
+      // Re-fetch to restore on failure
+      fetchHistory();
+    }
+  }, [fetchHistory]);
 
   useEffect(() => {
     if (!user?.household_id) return;
     setIsLoading(true);
     fetchHistory().finally(() => setIsLoading(false));
   }, [user?.household_id, fetchHistory]);
+
+  // Re-fetch whenever this tab gains focus (so newly purchased items appear)
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.household_id) {
+        fetchHistory();
+      }
+    }, [user?.household_id, fetchHistory])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -120,7 +157,7 @@ export default function HistoryScreen() {
 
   // ── Group by date ──────────────────────────────────────────
   const listData = useMemo<ListRow[]>(() => {
-    const groups = new Map<string, ShoppingItem[]>();
+    const groups = new Map<string, PurchaseTransaction[]>();
 
     for (const item of filteredItems) {
       const dateKey = item.purchased_at
@@ -136,7 +173,7 @@ export default function HistoryScreen() {
       const label = items[0]?.purchased_at
         ? formatDateHebrew(items[0].purchased_at)
         : 'לא ידוע';
-      flat.push({ type: 'header', title: label, key: `h-${dateKey}` });
+      flat.push({ type: 'header', title: `${label} (${items.length})`, key: `h-${dateKey}` });
       flat.push(...items);
     }
 
@@ -303,20 +340,27 @@ export default function HistoryScreen() {
 
           return (
             <View style={styles.itemRow}>
+              <View style={styles.itemBadge}>
+                <Text style={styles.itemBadgeText}>🛒</Text>
+              </View>
               <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{productName}</Text>
+                <Text style={styles.itemName}>{productName} {row.quantity > 1 && (<Text style={styles.itemQty}> × {row.quantity}</Text>)}</Text>
                 <View style={styles.itemMeta}>
                   {category !== '' && (
                     <Text style={styles.itemCategory}>{category}</Text>
-                  )}
-                  {row.quantity > 1 && (
-                    <Text style={styles.itemQty}>×{row.quantity}</Text>
                   )}
                   {time !== '' && (
                     <Text style={styles.itemTime}>{time}</Text>
                   )}
                 </View>
               </View>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => handleDeleteTransaction(row.id)}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.deleteBtnText}>🗑️</Text>
+              </TouchableOpacity>
             </View>
           );
         }}
@@ -325,7 +369,7 @@ export default function HistoryScreen() {
             <Text style={styles.emptyEmoji}>📋</Text>
             <Text style={styles.emptyText}>אין היסטוריית רכישות</Text>
             <Text style={styles.emptySubtext}>
-              פריטים שתסמנו כנרכשו יופיעו כאן
+              כל רכישה שתבצעו תירשם כאן כלוג פעילות
             </Text>
           </View>
         }
@@ -353,19 +397,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: dark.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: dark.surfaceAlt,
-    borderWidth: 1,
-    borderColor: dark.borderLight,
+    borderWidth: 1.5,
+    borderColor: dark.border,
   },
   filterChipActive: {
     backgroundColor: dark.accent,
@@ -374,7 +418,7 @@ const styles = StyleSheet.create({
   filterChipText: {
     fontSize: 13,
     color: dark.textMuted,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   filterChipTextActive: {
     color: '#fff',
@@ -382,13 +426,13 @@ const styles = StyleSheet.create({
   },
   datePickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'flex-end',
   },
   datePickerContainer: {
     backgroundColor: dark.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     paddingBottom: 30,
   },
   datePickerHeader: {
@@ -396,13 +440,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   datePickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: dark.text,
   },
   datePickerDone: {
@@ -417,54 +461,86 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingStart: 16,
     paddingEnd: 16,
-    paddingTop: 20,
+    paddingTop: 22,
     paddingBottom: 8,
     backgroundColor: dark.sectionBg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: dark.textSecondary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: dark.secondary,
     textAlign: 'right',
+    letterSpacing: 0.3,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 14,
     paddingStart: 16,
     paddingEnd: 16,
     backgroundColor: dark.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: dark.border,
   },
+  itemBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: dark.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginEnd: 10,
+  },
+  itemBadgeText: {
+    fontSize: 14,
+  },
   itemInfo: {
     flex: 1,
   },
+  
   itemName: {
     fontSize: 16,
+    fontWeight: '600',
     color: dark.text,
     textAlign: 'right',
   },
+  
   itemMeta: {
-    flexDirection: 'row',
+    justifyContent: 'flex-end',
     gap: 8,
-    marginTop: 2,
+    marginTop: 3,
   },
+  
   itemCategory: {
     fontSize: 12,
     color: dark.textSecondary,
+    fontWeight: '500',
     textAlign: 'right',
   },
+  
   itemQty: {
     fontSize: 12,
     color: dark.accent,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'right',
   },
   itemTime: {
     fontSize: 12,
     color: dark.textMuted,
+    textAlign: 'right',
+  },
+  deleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginStart: 8,
+  },
+  deleteBtnText: {
+    fontSize: 16,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -472,17 +548,17 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
+    fontSize: 56,
+    marginBottom: 16,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: dark.text,
   },
   emptySubtext: {
     fontSize: 14,
     color: dark.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
   },
 });

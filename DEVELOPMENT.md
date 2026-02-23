@@ -15,7 +15,7 @@
 | **Backend / DB** | [Supabase](https://supabase.com) (PostgreSQL + Auth + Realtime + RLS) |
 | **Predictions** | Supabase Edge Functions (Deno) |
 | **Language** | [TypeScript 5.9](https://typescriptlang.org) |
-| **Error Tracking** | [Sentry](https://sentry.io) (configured, not yet deployed) |
+| **Error Tracking** | *(planned)* |
 
 ---
 
@@ -97,7 +97,7 @@ Agala/
 ├── src/
 │   ├── components/
 │   │   ├── AddProductSheet.tsx   # Add product modal — search, recent, quantity picker
-│   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, tap-to-detail
+│   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback
 │   │   ├── SnoozeSheet.tsx       # Snooze action sheet
 │   │   └── SuggestionChips.tsx   # AI suggestion chips
 │   ├── hooks/
@@ -109,9 +109,9 @@ Agala/
 │   ├── types/
 │   │   └── database.ts          # Auto-generated Supabase DB types
 │   └── utils/
-│       └── categoryDetector.ts   # Hebrew category detection (200+ keywords, 14 categories)
+│       └── categoryDetector.ts   # Hebrew category detection (400+ keywords, 16 Israeli supermarket categories)
 ├── constants/
-│   ├── theme.ts                 # Dark theme — 30+ semantic color tokens (GitHub dark palette)
+│   ├── theme.ts                 # Dark theme — 30+ semantic color tokens (lavender-blue + teal palette)
 │   └── Colors.ts                # Legacy color constants
 ├── components/
 │   ├── useColorScheme.ts        # Forced dark mode override (native)
@@ -125,6 +125,8 @@ Agala/
 │   └── functions/
 │       └── nightly-prediction/
 │           └── index.ts         # Edge Function: nightly EMA recalculation
+├── supabase/migrations/         # Additional migrations
+│   └── 20260223_create_purchase_history.sql  # purchase_history table + RLS + backfill
 ├── .env.example                 # Environment variable template
 ├── package.json
 └── tsconfig.json
@@ -140,6 +142,7 @@ Agala/
 | `households` | Household groups for shared lists |
 | `products` | Product catalog (name, category, is_custom) |
 | `shopping_list` | Active list items (status: `active` / `purchased` / `snoozed`) |
+| `purchase_history` | Immutable transaction log — every purchase event with timestamp |
 | `household_inventory_rules` | AI predictions (ema_days, confidence_score, auto_add_status) |
 
 **Row Level Security (RLS)** is enabled — users can only access data belonging to their household.
@@ -187,6 +190,9 @@ EMA implementation is in `app/item/[id].tsx` (inline) and also in `ExternalFiles
 ### Optimistic Updates
 `addItem()` in `shoppingListStore.ts` returns synchronously with a `temp-*` ID. The real DB insert happens in a fire-and-forget async block. The temp ID is replaced with the real DB ID once the insert completes.
 
+### Instant Purchases
+`checkOffItem()` immediately moves the item to purchased status and inserts a record into `purchase_history`. No undo delay — users can delete history records directly from the history tab if needed.
+
 ### Duplicate Prevention
 - **Local check**: `items.some(i => i.product_id === productId && i.status === 'active')`
 - **DB check**: async query after local check to catch cross-device duplicates
@@ -218,14 +224,15 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 
 | File | Lines | Description |
 |:-----|:------|:-----------|
-| `src/store/shoppingListStore.ts` | ~518 | Core state: items, suggestions, optimistic CRUD, realtime subscription, offline queue |
+| `src/store/shoppingListStore.ts` | ~500 | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging |
 | `app/item/[id].tsx` | ~1257 | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, delete |
 | `app/(tabs)/settings.tsx` | ~603 | Profile editing, household management, CSV import/parse |
-| `src/components/AddProductSheet.tsx` | ~560 | Product search, recent products, quantity picker, auto-category |
-| `app/(tabs)/two.tsx` | ~489 | History with date filtering (5 modes + custom date picker) |
-| `app/(tabs)/index.tsx` | ~449 | Main list: sort modes, collapsible purchased, suggestions, FAB |
-| `src/utils/categoryDetector.ts` | ~140 | 14 categories, 200+ Hebrew keywords, `detectCategory()`, `getSmartDefaultDays()` |
-| `constants/theme.ts` | ~54 | GitHub dark palette, all semantic color tokens |
+| `src/components/AddProductSheet.tsx` | ~580 | Product search, recent products, autofill recommendations, quantity picker |
+| `app/(tabs)/two.tsx` | ~565 | Purchase history transaction log with date filtering + delete |
+| `app/(tabs)/index.tsx` | ~495 | Main list: sort modes, collapsible purchased, suggestions, FAB |
+| `src/utils/categoryDetector.ts` | ~400 | 16 Israeli supermarket categories, 400+ Hebrew keywords |
+| `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate flash, swipe gestures |
+| `constants/theme.ts` | ~66 | Lavender-blue + teal palette, all semantic color tokens |
 
 ---
 
