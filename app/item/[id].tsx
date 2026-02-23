@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { supabase } from '@/src/lib/supabase';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useShoppingListStore } from '@/src/store/shoppingListStore';
@@ -33,7 +34,7 @@ interface PurchaseRecord {
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   // ── Data state ─────────────────────────────────────────────
   const [item, setItem] = useState<ShoppingListRow | null>(null);
@@ -194,6 +195,8 @@ export default function ItemDetailScreen() {
   }, [nextBuyDate]);
 
   // ── Save changes ───────────────────────────────────────────
+  const fetchList = useShoppingListStore((s) => s.fetchList);
+
   const handleSave = useCallback(async () => {
     if (!item || !product) return;
     setSaving(true);
@@ -233,9 +236,14 @@ export default function ItemDetailScreen() {
       }
     }
 
-    showBanner('נשמר בהצלחה ✓', 'success');
+    // Refresh the store so the main list reflects the changes
+    if (user?.household_id) {
+      await fetchList(user.household_id);
+    }
+
     setSaving(false);
-  }, [item, product, editName, editCategory, editQuantity]);
+    router.back();
+  }, [item, product, editName, editCategory, editQuantity, user?.household_id, fetchList, router]);
 
   // ── Delete item ────────────────────────────────────────────
   const handleDelete = useCallback(async () => {
@@ -489,6 +497,11 @@ export default function ItemDetailScreen() {
           headerStyle: { backgroundColor: dark.surface },
           headerTintColor: dark.text,
           headerTitleStyle: { fontWeight: '700' },
+          headerRight: () => (
+            <TouchableOpacity onPress={signOut} style={{ paddingHorizontal: 8, paddingVertical: 4 }} activeOpacity={0.6}>
+              <FontAwesome name="sign-out" size={22} color={dark.textSecondary} />
+            </TouchableOpacity>
+          ),
         }}
       />
 
@@ -801,64 +814,70 @@ const styles = StyleSheet.create({
     color: dark.error,
     marginBottom: 16,
     textAlign: 'right',
+    fontWeight: '600',
   },
   backBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
     backgroundColor: dark.surface,
-    borderRadius: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: dark.border,
   },
   backBtnText: {
     color: dark.accent,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'right',
   },
 
   // ── Banner ────────────────────────────────────────────────
   banner: {
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: 14,
     marginBottom: 16,
   },
   bannerSuccess: {
     backgroundColor: dark.successBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.success,
   },
   bannerError: {
     backgroundColor: dark.errorBg,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.error,
   },
   bannerText: {
     textAlign: 'center',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: dark.text,
   },
 
   // ── Cards ─────────────────────────────────────────────────
   card: {
     backgroundColor: dark.surface,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 14,
-    borderWidth: 1,
-    borderColor: dark.borderLight,
+    borderWidth: 1.5,
+    borderColor: dark.border,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: dark.textSecondary,
-    marginBottom: 12,
+    fontSize: 14,
+    fontWeight: '800',
+    color: dark.secondary,
+    marginBottom: 14,
     textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   category: {
     fontSize: 13,
-    color: dark.textSecondary,
+    color: dark.secondary,
     marginTop: 8,
     textAlign: 'right',
+    fontWeight: '500',
   },
   categoryLabel: {
     fontSize: 13,
@@ -866,23 +885,23 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
     textAlign: 'right',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   categoryScroll: {
     maxHeight: 36,
   },
   categoryRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: 8,
     paddingEnd: 2,
   },
   categoryChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
     backgroundColor: dark.surfaceAlt,
-    borderWidth: 1,
-    borderColor: dark.borderLight,
+    borderWidth: 1.5,
+    borderColor: dark.border,
   },
   categoryChipActive: {
     backgroundColor: dark.accent,
@@ -891,20 +910,20 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontSize: 12,
     color: dark.textMuted,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   categoryChipTextActive: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // ── Input ─────────────────────────────────────────────────
   input: {
     fontSize: 16,
-    padding: 12,
-    borderWidth: 1,
+    padding: 14,
+    borderWidth: 1.5,
     borderColor: dark.inputBorder,
-    borderRadius: 10,
+    borderRadius: 14,
     backgroundColor: dark.input,
     color: dark.inputText,
     textAlign: 'right',
@@ -915,35 +934,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
+    gap: 22,
   },
   qtyBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: dark.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyBtnSmall: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: dark.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyBtnText: {
-    fontSize: 20,
+    fontSize: 22,
     color: '#fff',
-    fontWeight: '700',
-    lineHeight: 22,
+    fontWeight: '800',
+    lineHeight: 24,
   },
   qtyValue: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
     color: dark.text,
-    minWidth: 40,
+    minWidth: 44,
     textAlign: 'center',
   },
 
@@ -952,18 +971,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: dark.borderLight,
+    borderBottomColor: dark.border,
   },
   statLabel: {
     fontSize: 14,
     color: dark.textSecondary,
     textAlign: 'right',
+    fontWeight: '500',
   },
   statValue: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: dark.text,
     textAlign: 'right',
   },
@@ -977,35 +997,35 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: dark.borderLight,
+    borderTopColor: dark.border,
   },
   emaEditLabelCompact: {
     fontSize: 12,
     color: dark.textMuted,
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'right',
   },
   emaValueCompact: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: dark.text,
     minWidth: 24,
     textAlign: 'center',
   },
   qtyBtnTiny: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: dark.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.border,
   },
   qtyBtnTextTiny: {
     fontSize: 15,
     color: dark.textSecondary,
-    fontWeight: '700',
+    fontWeight: '800',
     lineHeight: 17,
   },
   noDataText: {
@@ -1019,21 +1039,22 @@ const styles = StyleSheet.create({
     color: dark.warning,
     textAlign: 'center',
     marginTop: 8,
+    fontWeight: '600',
   },
 
   // ── AI info box ───────────────────────────────────────────
   aiInfoBox: {
     backgroundColor: dark.infoBg,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: dark.accent,
+    borderWidth: 1.5,
+    borderColor: dark.secondary,
   },
   aiInfoTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    color: dark.accent,
+    fontWeight: '800',
+    color: dark.secondary,
     textAlign: 'right',
     marginBottom: 4,
   },
@@ -1052,26 +1073,26 @@ const styles = StyleSheet.create({
   },
   confidenceBarBg: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: dark.surfaceAlt,
     overflow: 'hidden',
   },
   confidenceBarFill: {
-    height: 6,
-    borderRadius: 3,
+    height: 7,
+    borderRadius: 4,
   },
 
   // ── AI stats box ──────────────────────────────────────────
   aiStatsBox: {
     backgroundColor: dark.surfaceAlt,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 14,
+    padding: 14,
     marginTop: 12,
   },
   aiStatsTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: dark.textSecondary,
     textAlign: 'right',
     marginBottom: 10,
@@ -1086,44 +1107,45 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   aiStatNum: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: dark.accent,
   },
   aiStatLabel: {
     fontSize: 11,
     color: dark.textMuted,
     marginTop: 2,
+    fontWeight: '500',
   },
 
   // ── Reset to AI button ────────────────────────────────────
   resetAIBtn: {
     backgroundColor: dark.infoBg,
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
-    borderWidth: 1,
-    borderColor: dark.accent,
+    borderWidth: 1.5,
+    borderColor: dark.secondary,
   },
   resetAIBtnText: {
-    color: dark.accent,
+    color: dark.secondary,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // ── Mode switch (AI / Manual) ─────────────────────────────
   modeSwitchRow: {
     flexDirection: 'row',
     marginTop: 12,
-    borderRadius: 10,
+    borderRadius: 14,
     overflow: 'hidden',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.border,
   },
   modeSwitchBtn: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: 'center',
     backgroundColor: dark.surfaceAlt,
   },
@@ -1132,20 +1154,20 @@ const styles = StyleSheet.create({
   },
   modeSwitchText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: dark.textMuted,
   },
   modeSwitchTextActive: {
     color: '#fff',
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // ── Apply button (inline) ────────────────────────────────
   applyBtn: {
     backgroundColor: dark.success,
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
     marginStart: 6,
   },
   applyBtnDisabled: {
@@ -1154,31 +1176,33 @@ const styles = StyleSheet.create({
   applyBtnText: {
     color: '#fff',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // ── Prediction ────────────────────────────────────────────
   predictionBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
     backgroundColor: dark.surfaceAlt,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: dark.border,
   },
   predictionEmoji: {
-    fontSize: 28,
+    fontSize: 30,
   },
   predictionLabel: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: dark.accent,
     textAlign: 'right',
   },
   predictionDate: {
     fontSize: 13,
     color: dark.textSecondary,
-    marginTop: 2,
+    marginTop: 3,
     textAlign: 'right',
   },
   lastPurchased: {
@@ -1193,65 +1217,71 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: dark.borderLight,
+    borderBottomColor: dark.border,
   },
   historyDate: {
     fontSize: 14,
     color: dark.text,
     textAlign: 'right',
+    fontWeight: '500',
   },
   historyQty: {
     fontSize: 13,
     color: dark.accent,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   // ── Create rule button ────────────────────────────────────
   createRuleBtn: {
     backgroundColor: dark.accent,
-    borderRadius: 10,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
   },
   createRuleBtnText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 
   // ── Save button ───────────────────────────────────────────
   saveBtn: {
     backgroundColor: dark.accent,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 6,
+    shadowColor: dark.fabShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 6,
   },
   saveBtnDisabled: {
     opacity: 0.6,
   },
   saveBtnText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
   },
 
   // ── Delete button ─────────────────────────────────────────
   deleteBtn: {
     backgroundColor: dark.errorBg,
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.error,
   },
   deleteBtnText: {
     color: dark.error,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

@@ -23,7 +23,46 @@ import { SnoozeSheet } from '@/src/components/SnoozeSheet';
 import { AddProductSheet } from '@/src/components/AddProductSheet';
 
 // ── FlatList union type (section headers mixed with items) ────
-type SortMode = 'default' | 'name' | 'category';
+type SortMode = 'name' | 'category';
+
+// ── Category → emoji mapping for sort-by-category headers ────
+const CATEGORY_EMOJI: Record<string, string> = {
+  // ── New categories (Shufersal / Rami Levy style) ──
+  'פירות וירקות': '🥬',
+  'חלב וביצים': '🥛',
+  'בשר, עוף ודגים': '🥩',
+  'לחם ומאפים': '🍞',
+  'שתייה': '🥤',
+  'יין ואלכוהול': '🍷',
+  'חטיפים, ממתקים ודגנים': '🍫',
+  'שימורים, רטבים וממרחים': '🥫',
+  'תבלינים, אפייה ושמנים': '🧂',
+  'פסטה, אורז וקטניות': '🍝',
+  'ניקיון וחד פעמי': '🧹',
+  'טיפוח והיגיינה': '🧴',
+  'תינוקות': '🍼',
+  'קפואים': '🧊',
+  'בריאות ואורגני': '🌿',
+  'ארוחות מוכנות': '🥘',
+  'ללא קטגוריה': '📦',
+  // ── Legacy fallbacks for existing products ──
+  'מוצרי חלב וביצים': '🥛',
+  'בשר ועוף': '🍗',
+  'דגים ופירות ים': '🐟',
+  'משקאות': '🥤',
+  'חטיפים וממתקים': '🍫',
+  'שימורים ורטבים': '🥫',
+  'תבלינים ושמנים': '🧂',
+  'דגנים, אורז ופסטה': '🍚',
+  'מוצרי ניקיון': '🧹',
+  'טיפוח אישי': '🧴',
+  'מוצרים לתינוקות וילדים': '🍼',
+  'מזון קפוא': '🧊',
+  'מזון בריאות ואורגני': '🌿',
+  'מזון מוכן וארוחות': '🥘',
+  'ממתקים ואפייה': '🎂',
+};
+type SortDirection = 'asc' | 'desc';
 type ListRow =
   | ShoppingItem
   | { type: 'header'; title: string; emoji: string; key: string };
@@ -35,12 +74,10 @@ export default function HomeScreen() {
     items,
     suggestions,
     isLoading,
-    pendingPurchases,
     autoAddedProductIds,
     fetchList,
     subscribeRealtime,
     checkOffItem,
-    undoCheckOff,
     snoozeItem,
     removeItem,
     acceptSuggestion,
@@ -51,7 +88,17 @@ export default function HomeScreen() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showPurchased, setShowPurchased] = useState(true);
-  const [sortMode, setSortMode] = useState<SortMode>('default');
+  const [sortMode, setSortMode] = useState<SortMode>('name');
+  const [sortDir, setSortDir] = useState<SortDirection>('asc');
+
+  const handleSortPress = useCallback((mode: SortMode) => {
+    if (sortMode === mode) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortMode(mode);
+      setSortDir('asc');
+    }
+  }, [sortMode]);
 
   // ── Bootstrap ──────────────────────────────────────────────
   useEffect(() => {
@@ -129,24 +176,24 @@ export default function HomeScreen() {
     ({ item }: { item: ShoppingItem }) => (
       <ShoppingListItem
         item={item}
-        isPending={pendingPurchases.has(item.id)}
         onCheckOff={checkOffItem}
-        onUndo={undoCheckOff}
         onSwipe={handleSwipe}
       />
     ),
-    [pendingPurchases, checkOffItem, undoCheckOff, handleSwipe],
+    [checkOffItem, handleSwipe],
   );
 
   // ── Build flat list data with section headers ──────────────
   const listData = useMemo<ListRow[]>(() => {
     const data: ListRow[] = [];
 
-    // Helper: sort items by the current mode
+    const dir = sortDir === 'asc' ? 1 : -1;
+
+    // Helper: sort items by the current mode + direction
     const sortItems = (arr: ShoppingItem[]): ShoppingItem[] => {
       if (sortMode === 'name') {
         return [...arr].sort((a, b) =>
-          (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he'),
+          dir * (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he'),
         );
       }
       if (sortMode === 'category') {
@@ -154,11 +201,11 @@ export default function HomeScreen() {
           const catA = a.product?.category ?? 'ללא קטגוריה';
           const catB = b.product?.category ?? 'ללא קטגוריה';
           const catCmp = catA.localeCompare(catB, 'he');
-          if (catCmp !== 0) return catCmp;
-          return (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he');
+          if (catCmp !== 0) return dir * catCmp;
+          return dir * (a.product?.name ?? '').localeCompare(b.product?.name ?? '', 'he');
         });
       }
-      return arr; // default: keep original order
+      return arr;
     };
 
     // When sorting by category, group active items (auto + manual) by category
@@ -171,32 +218,32 @@ export default function HomeScreen() {
       for (const item of sorted) {
         const cat = item.product?.category || 'ללא קטגוריה';
         if (cat !== lastCat) {
-          data.push({ type: 'header', title: cat, emoji: '📦', key: `h-cat-${cat}` });
+          data.push({ type: 'header', title: cat, emoji: CATEGORY_EMOJI[cat] ?? '📦', key: `h-cat-${cat}` });
           lastCat = cat;
         }
         data.push(item);
       }
     } else {
-      // default or name sort
+      // name sort
       if (autoAdded.length > 0) {
         data.push({ type: 'header', title: 'הוספה אוטומטית', emoji: '✨', key: 'h-auto' });
         data.push(...sortItems(autoAdded));
       }
       if (manual.length > 0) {
-        data.push({ type: 'header', title: 'הוספה ידנית', emoji: '✏️', key: 'h-manual' });
+        data.push({ type: 'header', title: `רשימת הקניות (${manual.length})`, emoji: '🛒', key: 'h-manual' });
         data.push(...sortItems(manual));
       }
     }
 
     if (purchased.length > 0) {
-      data.push({ type: 'header', title: `נרכשו (${purchased.length})`, emoji: '✓', key: 'h-purchased' });
+      data.push({ type: 'header', title: `כל המוצרים (${purchased.length})`, emoji: '✅', key: 'h-purchased' });
       if (showPurchased) {
         data.push(...sortItems(purchased));
       }
     }
 
     return data;
-  }, [autoAdded, manual, purchased, showPurchased, sortMode]);
+  }, [autoAdded, manual, purchased, showPurchased, sortMode, sortDir]);
 
   // ── Guards ─────────────────────────────────────────────────
   // Auth is enforced at root layout level via Redirect.
@@ -237,24 +284,21 @@ export default function HomeScreen() {
 
       {/* Sort toggle */}
       <View style={styles.sortBar}>
-        <TouchableOpacity
-          style={[styles.sortBtn, sortMode === 'default' && styles.sortBtnActive]}
-          onPress={() => setSortMode('default')}
-        >
-          <Text style={[styles.sortBtnText, sortMode === 'default' && styles.sortBtnTextActive]}>ברירת מחדל</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortBtn, sortMode === 'name' && styles.sortBtnActive]}
-          onPress={() => setSortMode('name')}
-        >
-          <Text style={[styles.sortBtnText, sortMode === 'name' && styles.sortBtnTextActive]}>לפי שם</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortBtn, sortMode === 'category' && styles.sortBtnActive]}
-          onPress={() => setSortMode('category')}
-        >
-          <Text style={[styles.sortBtnText, sortMode === 'category' && styles.sortBtnTextActive]}>לפי קטגוריה</Text>
-        </TouchableOpacity>
+        {([['name', 'לפי שם'], ['category', 'לפי קטגוריה']] as [SortMode, string][]).map(([mode, label]) => {
+          const isActive = sortMode === mode;
+          const arrow = isActive ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+          return (
+            <TouchableOpacity
+              key={mode}
+              style={[styles.sortBtn, isActive && styles.sortBtnActive]}
+              onPress={() => handleSortPress(mode)}
+            >
+              <Text style={[styles.sortBtnText, isActive && styles.sortBtnTextActive]}>
+                {label}{arrow}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Shopping list with section headers */}
@@ -356,17 +400,17 @@ const styles = StyleSheet.create({
   },
   sortBar: {
     flexDirection: 'row-reverse',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     gap: 8,
     backgroundColor: dark.background,
   },
   sortBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 7,
+    borderRadius: 20,
     backgroundColor: dark.surfaceAlt,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: dark.border,
   },
   sortBtnActive: {
@@ -380,19 +424,22 @@ const styles = StyleSheet.create({
   },
   sortBtnTextActive: {
     color: '#fff',
+    fontWeight: '700',
   },
   sectionHeader: {
     paddingStart: 16,
     paddingEnd: 16,
-    paddingTop: 16,
+    paddingTop: 18,
     paddingBottom: 6,
     backgroundColor: dark.sectionBg,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: dark.textSecondary,
+    fontSize: 13,
+    fontWeight: '800',
+    color: dark.secondary,
     textAlign: 'right',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sectionHeaderRow: {
     flexDirection: 'row-reverse',
@@ -410,37 +457,37 @@ const styles = StyleSheet.create({
     paddingTop: 100,
   },
   emptyEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
+    fontSize: 56,
+    marginBottom: 16,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: dark.text,
   },
   emptySubtext: {
     fontSize: 14,
     color: dark.textSecondary,
-    marginTop: 4,
+    marginTop: 6,
   },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 28,
     end: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: dark.fab,
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4.65,
+    elevation: 8,
+    shadowColor: dark.fabShadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.8,
+    shadowRadius: 12,
   },
   fabText: {
-    fontSize: 28,
+    fontSize: 30,
     color: '#fff',
     fontWeight: '300',
     marginTop: -2,

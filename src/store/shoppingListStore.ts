@@ -21,11 +21,6 @@ export interface SuggestionItem {
   confidenceScore: number;
 }
 
-interface PendingPurchase {
-  itemId: string;
-  timeoutId: ReturnType<typeof setTimeout>;
-}
-
 interface OfflineAction {
   itemId: string;
   purchasedAt: string;
@@ -44,14 +39,12 @@ interface ShoppingListState {
 
   // ── Offline / optimistic ─────────────────────────────────
   offlineQueue: OfflineAction[];
-  pendingPurchases: Map<string, PendingPurchase>;
 
   // ── Actions ──────────────────────────────────────────────
   fetchList: (householdId: string) => Promise<void>;
   fetchSuggestions: (householdId: string) => Promise<void>;
   subscribeRealtime: (householdId: string) => () => void;
   checkOffItem: (itemId: string) => void;
-  undoCheckOff: (itemId: string) => void;
   snoozeItem: (itemId: string, days: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   reactivateItem: (itemId: string) => void;
@@ -61,9 +54,6 @@ interface ShoppingListState {
   flushOfflineQueue: () => Promise<void>;
 }
 
-// ── Constants ────────────────────────────────────────────────
-const DEBOUNCE_MS = 5_000; // 5-second undo window
-
 // ── Store ────────────────────────────────────────────────────
 export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
   items: [],
@@ -72,7 +62,6 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
   householdId: null,
   autoAddedProductIds: new Set(),
   offlineQueue: [],
-  pendingPurchases: new Map(),
 
   // ── Fetch active list + auto-add rules ─────────────────────
   fetchList: async (householdId: string) => {
@@ -243,23 +232,24 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     };
   },
 
-  // ── Optimistic check-off with 5 s debounce ─────────────────
+  // ── Immediate check-off (purchase) ─────────────────────────
   checkOffItem: (itemId: string) => {
     const state = get();
+    const item = state.items.find((i) => i.id === itemId);
+    const now = new Date().toISOString();
 
-    // Optimistic: mark as purchased immediately (UI strikes-through)
+    // Optimistic: mark as purchased immediately
     set({
       items: state.items.map((i) =>
         i.id === itemId
-          ? { ...i, status: 'purchased' as const, purchased_at: new Date().toISOString() }
+          ? { ...i, status: 'purchased' as const, purchased_at: now }
           : i,
       ),
     });
 
-    // After 5 s — commit to Supabase (unless user taps Undo)
-    const timeoutId = setTimeout(async () => {
-      const now = new Date().toISOString();
-
+    // Commit to Supabase immediately (no delay)
+    (async () => {
+      // 1. Update shopping_list status
       const { error } = await supabase
         .from('shopping_list')
         .update({ status: 'purchased', purchased_at: now })
@@ -271,34 +261,21 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
         set({ offlineQueue: [...cur.offlineQueue, { itemId, purchasedAt: now }] });
       }
 
-      // Clean up pending map
-      const pending = get().pendingPurchases;
-      pending.delete(itemId);
-      set({ pendingPurchases: new Map(pending) });
-    }, DEBOUNCE_MS);
-
-    const newPending = new Map(state.pendingPurchases);
-    newPending.set(itemId, { itemId, timeoutId });
-    set({ pendingPurchases: newPending });
-  },
-
-  // ── Undo a check-off (within 5 s window) ──────────────────
-  undoCheckOff: (itemId: string) => {
-    const state = get();
-    const pending = state.pendingPurchases.get(itemId);
-
-    if (pending) {
-      clearTimeout(pending.timeoutId);
-      const newPending = new Map(state.pendingPurchases);
-      newPending.delete(itemId);
-
-      set({
-        items: state.items.map((i) =>
-          i.id === itemId ? { ...i, status: 'active' as const, purchased_at: null } : i,
-        ),
-        pendingPurchases: newPending,
-      });
-    }
+      // 2. Log transaction in purchase_history
+      if (item) {
+        const { error: histError } = await supabase
+          .from('purchase_history')
+          .insert({
+            household_id: item.household_id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            purchased_at: now,
+          });
+        if (histError) {
+          console.error('[store] purchase_history insert failed:', histError.message);
+        }
+      }
+    })();
   },
 
   // ── Reactivate a purchased item (move back to cart) ────────
@@ -365,6 +342,13 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     const state = get();
     if (state.items.some((i) => i.product_id === productId && i.status === 'active')) {
       return 'exists';
+    }
+
+    // 2. If the product exists as purchased, reactivate it instead of creating duplicate
+    const purchasedItem = state.items.find((i) => i.product_id === productId && i.status === 'purchased');
+    if (purchasedItem) {
+      get().reactivateItem(purchasedItem.id);
+      return 'added';
     }
 
     // 2. Optimistic: add a placeholder item immediately (instant UI)

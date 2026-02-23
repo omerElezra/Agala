@@ -2,6 +2,10 @@
   "name": "agala",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "author": {
+    "name": "Omer Elezra",
+    "url": "https://github.com/omerElezra"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
