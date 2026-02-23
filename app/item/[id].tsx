@@ -813,7 +813,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.error,
     marginBottom: 16,
-    textAlign: 'right',
     fontWeight: '600',
   },
   backBtn: {
@@ -828,7 +827,6 @@ const styles = StyleSheet.create({
     color: dark.accent,
     fontSize: 15,
     fontWeight: '700',
-    textAlign: 'right',
   },
 
   // ── Banner ────────────────────────────────────────────────
@@ -868,7 +866,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: dark.secondary,
     marginBottom: 14,
-    textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -876,7 +873,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: dark.secondary,
     marginTop: 8,
-    textAlign: 'right',
     fontWeight: '500',
   },
   categoryLabel: {
@@ -884,7 +880,6 @@ const styles = StyleSheet.create({
     color: dark.textMuted,
     marginTop: 10,
     marginBottom: 6,
-    textAlign: 'right',
     fontWeight: '700',
   },
   categoryScroll: {
@@ -926,7 +921,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: 'right',
   },
 
   // ── Quantity ──────────────────────────────────────────────
@@ -978,14 +972,12 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: dark.textSecondary,
-    textAlign: 'right',
     fontWeight: '500',
   },
   statValue: {
     fontSize: 14,
     fontWeight: '700',
     color: dark.text,
-    textAlign: 'right',
   },
 
   // ── EMA edit (compact) ────────────────────────────────────
@@ -1003,7 +995,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: dark.textMuted,
     fontWeight: '700',
-    textAlign: 'right',
   },
   emaValueCompact: {
     fontSize: 15,
@@ -1055,13 +1046,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: dark.secondary,
-    textAlign: 'right',
     marginBottom: 4,
   },
   aiInfoDesc: {
     fontSize: 12,
     color: dark.textSecondary,
-    textAlign: 'right',
     lineHeight: 18,
   },
 
@@ -1094,7 +1083,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: dark.textSecondary,
-    textAlign: 'right',
     marginBottom: 10,
   },
   aiStatGrid: {
@@ -1197,19 +1185,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: dark.accent,
-    textAlign: 'right',
   },
   predictionDate: {
     fontSize: 13,
     color: dark.textSecondary,
     marginTop: 3,
-    textAlign: 'right',
   },
   lastPurchased: {
     fontSize: 13,
     color: dark.textMuted,
     marginTop: 10,
-    textAlign: 'right',
   },
 
   // ── History ───────────────────────────────────────────────
@@ -1224,7 +1209,6 @@ const styles = StyleSheet.create({
   historyDate: {
     fontSize: 14,
     color: dark.text,
-    textAlign: 'right',
     fontWeight: '500',
   },
   historyQty: {

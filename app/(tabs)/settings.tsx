@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   ScrollView,
@@ -229,7 +230,15 @@ export default function SettingsScreen() {
     }
   }, [handleCsvImport]);
 
-  if (isLoading || !user) return null;
+  if (isLoading || !user) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={dark.accent} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -406,6 +415,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: dark.background,
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: {
     padding: 16,
     paddingBottom: 40,
@@ -444,7 +458,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: dark.accent,
     marginBottom: 14,
-    textAlign: 'right',
     letterSpacing: 0.3,
   },
   row: {
@@ -456,13 +469,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: dark.textSecondary,
     marginBottom: 4,
-    textAlign: 'right',
     fontWeight: '600',
   },
   value: {
     fontSize: 16,
     color: dark.text,
-    textAlign: 'right',
     fontWeight: '500',
   },
   editIcon: {
@@ -483,7 +494,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: 'right',
   },
   saveBtn: {
     paddingVertical: 10,
@@ -517,7 +527,6 @@ const styles = StyleSheet.create({
     color: dark.textSecondary,
     marginTop: 8,
     lineHeight: 20,
-    textAlign: 'right',
   },
   joinSection: {
     marginTop: 16,
@@ -581,14 +590,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: dark.textSecondary,
     marginBottom: 4,
-    textAlign: 'right',
   },
   csvExampleText: {
     fontSize: 13,
     color: dark.textMuted,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     lineHeight: 20,
-    textAlign: 'right',
   },
   importBtn: {
     backgroundColor: dark.accent,

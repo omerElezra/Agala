@@ -349,7 +349,6 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: '800',
     color: dark.text,
-    textAlign: 'right',
   },
   closeBtn: {
     fontSize: 22,
@@ -367,7 +366,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: dark.inputBorder,
     color: dark.inputText,
-    textAlign: 'right',
   },
   searching: {
     textAlign: 'center',
@@ -390,7 +388,6 @@ const styles = StyleSheet.create({
     color: dark.warning,
     fontSize: 14,
     fontWeight: '700',
-    textAlign: 'right',
   },
   list: {
     flex: 1,
@@ -409,13 +406,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.text,
     fontWeight: '600',
-    textAlign: 'right',
   },
   resultCat: {
     fontSize: 13,
     color: dark.textSecondary,
     fontWeight: '500',
-    textAlign: 'right',
   },
   createBtn: {
     padding: 16,
@@ -444,7 +439,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: dark.secondary,
     marginBottom: 12,
-    textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

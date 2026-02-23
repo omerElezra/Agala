@@ -157,7 +157,6 @@ export default function AuthScreen() {
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
-              textAlign="right"
             />
           )}
 
@@ -171,7 +170,6 @@ export default function AuthScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             textContentType="emailAddress"
-            textAlign="right"
           />
 
           <TextInput
@@ -183,7 +181,6 @@ export default function AuthScreen() {
             secureTextEntry
             autoCapitalize="none"
             textContentType={mode === 'signup' ? 'newPassword' : 'password'}
-            textAlign="right"
           />
 
           <TouchableOpacity
@@ -321,7 +318,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: dark.text,
-    textAlign: 'right',
     lineHeight: 20,
     fontWeight: '500',
   },

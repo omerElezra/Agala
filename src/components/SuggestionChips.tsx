@@ -57,7 +57,6 @@ const styles = StyleSheet.create({
     paddingStart: 16,
     paddingEnd: 16,
     marginBottom: 10,
-    textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
