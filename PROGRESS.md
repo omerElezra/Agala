@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2025-07-18
+> Last updated: 2026-02-24
 
 ---
 
@@ -111,6 +111,24 @@
 - [x] **Auto-category detection** — Each imported item gets auto-categorized via `detectCategory()`
 - [x] **Product upsert** — Reuses existing products by name, only creates new ones if needed
 
+### 5k. APK Bug Fixes (2026-02-24)
+- [x] **Settings black screen** — `useAuth()` briefly returns `isLoading=true`; replaced `return null` with `ActivityIndicator` loading spinner so the screen doesn't flash black
+- [x] **"(tabs)" title visible** — Stack navigator was rendering "(tabs)" as header title; fixed by setting `headerShown: false` globally in Stack `screenOptions` and defining all screens statically
+- [x] **Bottom tabs behind nav bar** — Fixed tab bar height didn't account for Android system navigation bar; added `useSafeAreaInsets()` from `react-native-safe-area-context` with dynamic `bottomPadding` calculation
+- [x] **Adaptive icon clipped** — Icon content filled entire 1024x1024 canvas, getting clipped by Android's adaptive icon mask; resized logo to 63% (645px) centered on dark background canvas
+- [x] **RTL double-reversal** — `I18nManager.forceRTL(true)` already handles RTL layout system-wide; removed all manual `textAlign: 'right'` (~40+ occurrences across 11 files) and `flexDirection: 'row-reverse'` overrides that were causing double-flip back to LTR appearance
+- [x] **First-launch RTL reload** — Added `expo-updates` dependency; root layout now calls `Updates.reloadAsync()` when `!I18nManager.isRTL` is detected (first install), ensuring RTL takes effect immediately without manual restart
+- [x] **Header button swap** — Swapped `headerLeft`/`headerRight` in tabs layout to account for RTL auto-flip (logo → headerLeft, exit → headerRight ≡ null)
+
+### 5l. Splash Icon & Branding (2026-02-24)
+- [x] **Proportional splash icon** — Extracted logo from adaptive-icon (411x458 content area), scaled proportionally to ~35% of canvas width, centered on 1284x2778 dark (#0F0F1A) splash canvas
+- [x] **Splash screen background** — Set to `#0F0F1A` matching the app's dark theme
+
+### 5m. CI/CD Pipeline (2026-02-24)
+- [x] **GitHub Actions workflow** — Unified `cicd.yml` with quality checks (typecheck + expo-doctor), auto-versioning, EAS Build, and GitHub Release
+- [x] **Release notes config** — `.github/release.yml` with auto-categorized changelog (features, bugs, UI, AI, maintenance, docs)
+- [x] **Version management** — Auto-increment patch on push to main, manual override via workflow dispatch
+
 ---
 
 ## Next Steps
@@ -121,20 +139,18 @@
 
 ### 7. Start Dev Server & Test on Device
 - [x] Dev server started: `npx expo start --port 8081` (running on port 8081)
-- [ ] Open on iOS Simulator (`i`), Android Emulator (`a`), or Expo Go (scan QR)
-- [ ] Verify the app loads without crash
+- [x] Tested on Android device via EAS preview APK
+- [x] Verified the app loads without crash
 
 ### 8. Test Auth Flow
-- [ ] Sign up with a test email + password
-- [ ] Confirm user appears in Supabase Dashboard → Authentication → Users
-- [ ] Sign out, then sign back in
-- [ ] Verify session persists after app restart (AsyncStorage)
+- [x] Sign up with test email + password — works
+- [x] Session persists after app restart (AsyncStorage)
+- [x] Sign out and sign back in — verified
 
 ### 9. Test Shopping List (E2E Data Flow)
-- [ ] After sign-in, add an item via `AddProductSheet`
-- [ ] Confirm item appears in Supabase → Table Editor → `shopping_list`
-- [ ] Check off item in app → verify `purchased_at` timestamp set in DB
-- [ ] Open on second device → confirm Realtime sync works
+- [x] Add item via `AddProductSheet` — item appears in DB
+- [x] Check off item → `purchased_at` timestamp set
+- [x] Realtime sync between devices — working
 
 ### 10. Deploy Edge Function (Nightly Predictions)
 - [ ] Install Supabase CLI: `npm install -g supabase`
@@ -145,26 +161,28 @@
 
 ### 11. Add Test Framework
 - [ ] Install: `npx expo install jest-expo jest @testing-library/react-native @types/jest -- --save-dev`
-- [ ] Add to `package.json`:
-  ```json
-  "scripts": { "test": "jest" },
-  "jest": { "preset": "jest-expo" }
-  ```
 - [ ] Write unit tests for `shoppingListStore.ts` and `useAuth.ts`
 - [ ] Write component tests for `ShoppingListItem` and `AddProductSheet`
 
 ### 12. Production Build
-- [ ] Install EAS CLI: `npm install -g eas-cli`
-- [ ] Configure: `eas build:configure`
+- [x] EAS CLI installed (v18.0.3)
+- [x] `eas build:configure` — configured with `eas.json` (preview + production profiles)
+- [x] EAS environment variables set for `preview` and `production`: `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- [x] Build Android preview APK: `eas build --platform android --profile preview`
+- [x] Build Android production AAB: `eas build --platform android --profile production`
+- [x] Tested APK on physical Android device — 5 bugs found and fixed
 - [ ] Build iOS: `eas build --platform ios --profile preview`
-- [ ] Build Android: `eas build --platform android --profile preview`
-- [ ] Test on real devices
+- [ ] Test on real iOS device
 
 ### 13. Polish & Ship
-- [ ] Add app icon and splash screen assets
+- [x] App icon and splash screen assets configured (adaptive-icon, splash-icon, icon, favicon)
+- [x] Splash icon proportionally sized (~35% of canvas width)
+- [x] Adaptive icon with safe 63% sizing for Android masks
+- [x] CI/CD pipeline set up via GitHub Actions
 - [ ] Configure push notifications (if needed)
-- [ ] Set up Sentry error tracking (already in dependencies)
-- [ ] Submit to App Store / Google Play via `eas submit`
+- [ ] Set up Sentry error tracking
+- [ ] Submit to Google Play via `eas submit --platform android`
+- [ ] Submit to App Store via `eas submit --platform ios`
 
 ---
 
@@ -177,4 +195,5 @@
 | State | Zustand |
 | Backend/DB | Supabase (PostgreSQL + Auth + Realtime) |
 | Predictions | Supabase Edge Functions (Deno) |
-| Error Tracking | Sentry |
+| Build/CI | EAS CLI v18.0.3 + GitHub Actions |
+| OTA Updates | expo-updates (first-launch RTL reload) |

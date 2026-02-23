@@ -115,7 +115,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.text,
     fontWeight: '600',
-    textAlign: 'right',
   },
   optionEmoji: {
     fontSize: 22,
@@ -128,7 +127,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.error,
     fontWeight: '600',
-    textAlign: 'right',
   },
   cancelBtn: {
     marginTop: 8,

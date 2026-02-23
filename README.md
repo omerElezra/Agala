@@ -7,6 +7,7 @@
 אפליקציה לניהול רשימת קניות משותפת עם חיזוי חכם מתי צריך לקנות שוב
 
 [![Platform](https://img.shields.io/badge/פלטפורמה-iOS%20%7C%20Android%20%7C%20Web-lightgrey)]()
+[![CI/CD](https://github.com/omerElezra/Agala/actions/workflows/cicd.yml/badge.svg)](https://github.com/omerElezra/Agala/actions/workflows/cicd.yml)
 [![Hebrew](https://img.shields.io/badge/שפה-עברית-blue)]()
 [![Author](https://img.shields.io/badge/יוצר-Omer%20Elezra-8B9FE8)](https://github.com/omerElezra)
 
@@ -77,8 +78,10 @@
 
 - **מצב כהה** — עיצוב כהה מודרני, נוח לעיניים
 - **עברית מלאה** — כל הטקסטים, הודעות שגיאה, וכפתורים בעברית
-- **תמיכה ב-RTL** — הכל מסודר מימין לשמאל כמו שצריך
+- **תמיכה מלאה ב-RTL** — הכל מסודר מימין לשמאל באופן אוטומטי דרך `I18nManager`, בלי צורך ב-overrides ידניים
 - **רב-פלטפורמי** — עובד על iPhone, Android, ודפדפן אינטרנט
+- **Adaptive Icon** — אייקון שמותאם לכל צורת מסך אנדרואיד (עיגול, מרובע מעוגל), ממוקם ב-63% עם שוליים בטוחים
+- **מסך פתיחה** — לוגו ממורכז וממוקד על רקע כהה, בגודל פרופורציונלי (~35% מרוחב המסך)
 
 ---
 
@@ -143,6 +146,8 @@
 ## 🔗 למפתחים
 
 מחפשים מידע טכני? ראו [DEVELOPMENT.md](DEVELOPMENT.md).
+
+מעקב התקדמות ושלבי בנייה: [PROGRESS.md](PROGRESS.md).
 
 ---
 

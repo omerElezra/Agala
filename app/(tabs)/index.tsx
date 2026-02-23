@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   sortBar: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 8,
@@ -437,12 +437,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: dark.secondary,
-    textAlign: 'right',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   sectionHeaderRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },

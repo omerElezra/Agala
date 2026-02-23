@@ -275,7 +275,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: dark.text,
-    textAlign: 'right',
   },
   namePurchased: {
     color: dark.textOnAccent,
@@ -290,7 +289,6 @@ const styles = StyleSheet.create({
   },
   category: {
     fontSize: 12,
-    textAlign: 'right',
     color: dark.textSecondary,
     fontWeight: '500',
   },

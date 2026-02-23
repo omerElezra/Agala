@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   filterBar: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
@@ -471,7 +471,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: dark.secondary,
-    textAlign: 'right',
     letterSpacing: 0.3,
   },
   itemRow: {
@@ -504,7 +503,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: dark.text,
-    textAlign: 'right',
   },
   
   itemMeta: {
@@ -517,19 +515,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: dark.textSecondary,
     fontWeight: '500',
-    textAlign: 'right',
   },
   
   itemQty: {
     fontSize: 12,
     color: dark.accent,
     fontWeight: '700',
-    textAlign: 'right',
   },
   itemTime: {
     fontSize: 12,
     color: dark.textMuted,
-    textAlign: 'right',
   },
   deleteBtn: {
     width: 36,

@@ -3,8 +3,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Redirect, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Updates from 'expo-updates';
 import { useEffect } from 'react';
-import { ActivityIndicator, I18nManager, View } from 'react-native';
+import { ActivityIndicator, I18nManager, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -14,10 +15,14 @@ import { dark } from '@/constants/theme';
 
 // ── Force RTL for Hebrew UI ──────────────────────────────────
 // Must run at module scope, before any component renders.
-// A single app restart is needed for the change to take effect.
+// On first launch, RTL is not yet active — we force it and reload.
 if (!I18nManager.isRTL) {
   I18nManager.allowRTL(true);
   I18nManager.forceRTL(true);
+  // Reload the app so RTL takes effect immediately on first install
+  if (Platform.OS !== 'web') {
+    Updates.reloadAsync().catch(() => {});
+  }
 }
 
 export {
@@ -70,19 +75,11 @@ function RootLayoutNav() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          {session ? (
-            <>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="item/[id]" options={{ presentation: 'card' }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-            </>
-          ) : (
-            <Stack.Screen
-              name="auth"
-              options={{ headerShown: false, animationTypeForReplace: 'pop' }}
-            />
-          )}
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" options={{ animationTypeForReplace: 'pop' }} />
+          <Stack.Screen name="item/[id]" options={{ headerShown: true, presentation: 'card' }} />
+          <Stack.Screen name="modal" options={{ headerShown: true, presentation: 'modal' }} />
         </Stack>
         {/* Redirect based on auth state */}
         {session ? <Redirect href="/(tabs)" /> : <Redirect href="/auth" />}

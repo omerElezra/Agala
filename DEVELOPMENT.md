@@ -15,7 +15,8 @@
 | **Backend / DB** | [Supabase](https://supabase.com) (PostgreSQL + Auth + Realtime + RLS) |
 | **Predictions** | Supabase Edge Functions (Deno) |
 | **Language** | [TypeScript 5.9](https://typescriptlang.org) |
-| **Error Tracking** | *(planned)* |
+| **Build / CI** | [EAS CLI](https://docs.expo.dev/build/introduction/) + [GitHub Actions](https://github.com/features/actions) |
+| **OTA Updates** | [expo-updates](https://docs.expo.dev/versions/latest/sdk/updates/) (RTL first-launch reload) |
 
 ---
 
@@ -77,6 +78,7 @@ npx expo start --web     # Web browser
 | `npm run ios` | Start on iOS Simulator |
 | `npm run android` | Start on Android Emulator |
 | `npm run web` | Start in web browser |
+| `npm run typecheck` | TypeScript type-checking (`tsc --noEmit`) |
 
 ---
 
@@ -209,11 +211,14 @@ EMA implementation is in `app/item/[id].tsx` (inline) and also in `ExternalFiles
 If `03_auth_trigger.sql` wasn't applied, `useAuth.ts` → `fetchOrCreateProfile()` auto-creates a household + user profile on first login.
 
 ### RTL-First
-All styling uses logical properties:
-- `marginStart` / `marginEnd` instead of `marginLeft` / `marginRight`
-- `paddingStart` / `paddingEnd` instead of `paddingLeft` / `paddingRight`
-- `textAlign: 'right'` on all Hebrew text
-- `I18nManager.forceRTL(true)` in root layout
+The app is RTL-first via `I18nManager.forceRTL(true)` in the root layout. This means React Native's layout engine **automatically** handles RTL:
+- `flexDirection: 'row'` renders right-to-left
+- `marginStart`/`marginEnd` map to the correct physical sides
+- Text naturally aligns to the right
+
+**Important:** Do **NOT** add manual RTL overrides like `textAlign: 'right'` or `flexDirection: 'row-reverse'` — these cause double-reversal (back to LTR appearance). The system handles it.
+
+On first install, `I18nManager.isRTL` may still be `false` until a reload occurs. The app uses `expo-updates` → `Updates.reloadAsync()` to automatically reload once when RTL is not yet active.
 
 ### Theme System
 All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors in components. The theme has 30+ semantic tokens organized by category (backgrounds, text, borders, accent, interactive, chips, inputs, swipe).
@@ -253,21 +258,114 @@ supabase functions deploy nightly-prediction --no-verify-jwt
 
 ## Building for Production
 
+### EAS Build Profiles
+
+| Profile | Platform | Output | Use |
+|:--------|:---------|:-------|:----|
+| `preview` | Android | APK | Testing on physical devices |
+| `production` | Android | AAB | Google Play submission |
+
+### Environment Variables (EAS)
+
+Set via `eas env:create` for both `preview` and `production` environments:
+
+| Variable | Visibility |
+|:---------|:-----------|
+| `EXPO_PUBLIC_SUPABASE_URL` | plaintext |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | sensitive |
+
+### Build Commands
+
 ```bash
 # Install EAS CLI
 npm install -g eas-cli
 
-# Configure
-eas build:configure
-
-# Build
-eas build --platform ios --profile preview
+# Preview APK (for testing)
 eas build --platform android --profile preview
 
-# Submit
-eas submit --platform ios
+# Production AAB (for Play Store)
+eas build --platform android --profile production
+
+# Submit to Play Store
 eas submit --platform android
 ```
+
+### Asset Guidelines
+
+| Asset | Size | Notes |
+|:------|:-----|:------|
+| `icon.png` | 1024x1024 | App icon (iOS + Android fallback) |
+| `adaptive-icon.png` | 1024x1024 | Android adaptive icon foreground — logo at 63% centered on `#0F0F1A` canvas |
+| `splash-icon.png` | 1284x2778 | Splash screen — logo at ~35% of width, centered on `#0F0F1A` canvas |
+| `favicon.png` | 48x48 | Web favicon |
+
+---
+
+## CI/CD Pipeline
+
+The project uses a unified GitHub Actions workflow ([`.github/workflows/cicd.yml`](.github/workflows/cicd.yml)) that handles quality checks, versioning, building, and releasing.
+
+### Workflow Triggers
+
+| Trigger | What runs |
+|:--------|:----------|
+| **Pull Request → main** | Quality checks only (typecheck, expo-doctor) |
+| **Push to main** (merge) | Quality → Version → EAS Build → GitHub Release |
+| **Manual dispatch** (Actions UI) | Same as push, but you specify the version number |
+
+### Pipeline Flow
+
+```
+PR opened/updated
+  └─► quality ─► typecheck + expo-doctor
+        ✓ done (no build, no release)
+
+Push to main (or manual dispatch)
+  ├─► quality ─► typecheck + expo-doctor
+  ├─► version ─► auto-increment patch (or use manual input)
+  ├─► build ──► update app version → EAS Build (Android preview)
+  └─► release ► commit version bump → git tag → GitHub Release
+```
+
+### Version Management
+
+The app version is **automatically managed** by CI and stays in sync across all layers:
+
+| Location | Example | Managed by |
+|:---------|:--------|:-----------|
+| `app.json` → `expo.version` | `1.2.3` | CI (committed back to main) |
+| `package.json` → `version` | `1.2.3` | CI (committed back to main) |
+| Git tag | `v1.2.3` | CI (created on release) |
+| Android `versionCode` | `14` | EAS remote auto-increment |
+
+**Auto-increment (default):** On every push to main, the patch version bumps automatically — `v1.0.0` → `v1.0.1` → `v1.0.2`.
+
+**Manual override:** Use the "Run workflow" button in GitHub Actions to set a specific version like `2.0.0` for major/minor releases.
+
+**No-loop protection:** The version bump commit includes `[skip ci]` in the message to prevent re-triggering the workflow.
+
+### Release Notes
+
+GitHub auto-generates release notes from merged PRs. PRs are categorized by labels in [`.github/release.yml`](.github/release.yml):
+
+| Label | Category |
+|:------|:---------|
+| `feature`, `enhancement` | ✨ New Features |
+| `bug`, `fix` | 🐛 Bug Fixes |
+| `ui`, `design` | 🎨 UI / Design |
+| `ai`, `prediction` | 🧠 AI / Predictions |
+| `chore`, `ci`, `dependencies` | ⚙️ Maintenance |
+| `docs` | 📝 Documentation |
+
+PRs labeled `skip-changelog` and bot commits are excluded.
+
+### Required Secrets
+
+Add these in GitHub → Settings → Secrets → Actions:
+
+| Secret | Description |
+|:-------|:-----------|
+| `EXPO_TOKEN` | EAS access token ([expo.dev/accounts/settings](https://expo.dev/accounts/settings)) |
 
 ---
 
@@ -277,7 +375,10 @@ eas submit --platform android
 2. Create a feature branch: `git checkout -b feature/my-feature`
 3. Commit your changes: `git commit -m 'Add my feature'`
 4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
+5. Open a Pull Request → CI runs quality checks automatically
+6. After review & merge → CI auto-builds, auto-versions, and creates a GitHub Release
+
+**PR labels matter!** Add a label (`feature`, `bug`, `ui`, etc.) so the release notes are organized nicely.
 
 ---
 
