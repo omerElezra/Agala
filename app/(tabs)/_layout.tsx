@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,7 +35,7 @@ function HeaderExit() {
     <View style={headerStyles.exitRow}>
       {displayName ? <Text style={headerStyles.exitName}>{displayName}</Text> : null}
       <TouchableOpacity onPress={signOut} style={headerStyles.exitBtn} activeOpacity={0.6}>
-        <FontAwesome name="sign-out" size={20} color={dark.textSecondary} />
+        <MaterialCommunityIcons name="exit-run" size={22} color={dark.textSecondary} />
       </TouchableOpacity>
     </View>
   );
@@ -49,6 +50,7 @@ const headerStyles = StyleSheet.create({
 });
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -74,9 +76,9 @@ export default function TabLayout() {
           backgroundColor: dark.surface,
           borderTopColor: dark.border,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 6,
-          paddingTop: 4,
+          height: 56 + insets.bottom,
+          paddingBottom: insets.bottom,
+          paddingTop: 0,
         },
         tabBarLabelStyle: {
           fontSize: 12,
@@ -85,10 +87,10 @@ export default function TabLayout() {
         tabBarLabelPosition: 'beside-icon',
       }}>
       <Tabs.Screen
-        name="settings"
+        name="two"
         options={{
-          title: 'הגדרות',
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          title: 'היסטוריה',
+          tabBarIcon: ({ color }) => <TabBarIcon name="history" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -99,10 +101,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="settings"
         options={{
-          title: 'היסטוריה',
-          tabBarIcon: ({ color }) => <TabBarIcon name="history" color={color} />,
+          title: 'הגדרות',
+          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
         }}
       />
 

@@ -88,9 +88,16 @@ export default function HistoryScreen() {
         cutoff = new Date(startOfToday);
         cutoff.setMonth(cutoff.getMonth() - 1);
         break;
-      case 'custom':
-        cutoff = new Date(customDate.getFullYear(), customDate.getMonth(), customDate.getDate());
-        break;
+      case 'custom': {
+        const start = new Date(customDate.getFullYear(), customDate.getMonth(), customDate.getDate());
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        return transactions.filter((item) => {
+          if (!item.purchased_at) return false;
+          const d = new Date(item.purchased_at);
+          return d >= start && d < end;
+        });
+      }
     }
 
     return transactions.filter((item) => {
@@ -276,7 +283,7 @@ export default function HistoryScreen() {
           >
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
-                <Text style={styles.datePickerTitle}>בחר תאריך התחלה</Text>
+                <Text style={styles.datePickerTitle}>בחר יום</Text>
                 <TouchableOpacity onPress={() => setShowDatePicker(false)}>
                   <Text style={styles.datePickerDone}>סיום</Text>
                 </TouchableOpacity>
@@ -340,15 +347,11 @@ export default function HistoryScreen() {
 
           return (
             <View style={styles.itemRow}>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleDeleteTransaction(row.id)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.deleteBtnText}>🗑️</Text>
-              </TouchableOpacity>
+              <View style={styles.itemBadge}>
+                <Text style={styles.itemBadgeText}>🛒</Text>
+              </View>
               <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{productName} {row.quantity > 1 && (<Text style={styles.itemQty}> × {row.quantity}</Text>)}</Text>
+                <Text style={styles.itemName}>{productName} {row.quantity > 1 && (<Text style={styles.itemQty}> {row.quantity}x</Text>)}</Text>
                 <View style={styles.itemMeta}>
                   {category !== '' && (
                     <Text style={styles.itemCategory}>{category}</Text>
@@ -358,9 +361,13 @@ export default function HistoryScreen() {
                   )}
                 </View>
               </View>
-              <View style={styles.itemBadge}>
-                <Text style={styles.itemBadgeText}>🛒</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => handleDeleteTransaction(row.id)}
+                activeOpacity={0.6}
+              >
+                <Text style={styles.deleteBtnText}>🗑️</Text>
+              </TouchableOpacity>
             </View>
           );
         }}
@@ -391,22 +398,22 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
   },
   listContent: {
-    paddingBottom: 40,
+    paddingBottom: 80,
   },
   filterBar: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     backgroundColor: dark.surface,
     borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
     backgroundColor: dark.surfaceAlt,
     borderWidth: 1.5,
     borderColor: dark.border,
@@ -416,7 +423,7 @@ const styles = StyleSheet.create({
     borderColor: dark.accent,
   },
   filterChipText: {
-    fontSize: 13,
+    fontSize: 12,
     color: dark.textMuted,
     fontWeight: '600',
   },
@@ -461,8 +468,8 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingStart: 16,
     paddingEnd: 16,
-    paddingTop: 22,
-    paddingBottom: 8,
+    paddingTop: 14,
+    paddingBottom: 6,
     backgroundColor: dark.sectionBg,
     borderBottomWidth: 1,
     borderBottomColor: dark.border,
@@ -476,31 +483,32 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingStart: 16,
-    paddingEnd: 16,
+    paddingVertical: 6,
+    paddingStart: 12,
+    paddingEnd: 12,
     backgroundColor: dark.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
+    marginBottom: 1,
   },
   itemBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: dark.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginStart: 10,
+    marginEnd: 8,
   },
   itemBadgeText: {
-    fontSize: 14,
+    fontSize: 11,
   },
   itemInfo: {
     flex: 1,
   },
   
   itemName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: dark.text,
   },
@@ -527,9 +535,9 @@ const styles = StyleSheet.create({
     color: dark.textMuted,
   },
   deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginStart: 8,

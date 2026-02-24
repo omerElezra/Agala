@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   sortBar: {
     flexDirection: 'row',

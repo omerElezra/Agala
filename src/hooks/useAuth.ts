@@ -10,6 +10,7 @@ interface AuthState {
   user: UserRow | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 export function useAuth(): AuthState {
@@ -131,5 +132,11 @@ export function useAuth(): AuthState {
     setUser(null);
   }
 
-  return { session, user, isLoading, signOut };
+  async function refreshProfile() {
+    if (session) {
+      await fetchOrCreateProfile(session);
+    }
+  }
+
+  return { session, user, isLoading, signOut, refreshProfile };
 }
