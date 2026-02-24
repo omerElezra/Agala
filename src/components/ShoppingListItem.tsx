@@ -174,7 +174,6 @@ export function ShoppingListItem({
         </View>
       )}
 
-      {/* daomer */}
       {/* Product info — RIGHT side: name on top, category below */}
       <TouchableOpacity
         style={styles.info}
@@ -218,7 +217,7 @@ export function ShoppingListItem({
 // ── Styles (Dark mode, RTL-safe) ─────────────────────────────
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     paddingVertical: 10,
     paddingStart: 14,
@@ -240,7 +239,7 @@ const styles = StyleSheet.create({
     borderColor: dark.checkbox,
     alignItems: 'center',
     justifyContent: 'center',
-    marginEnd: 25,
+    marginEnd: 8,
   },
   checkboxChecked: {
     backgroundColor: dark.checkboxChecked,
@@ -277,17 +276,20 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: dark.text,
+    alignSelf: 'flex-start',
   },
   namePurchased: {
     color: dark.textOnAccent,
     fontWeight: '400',
     fontStyle: 'italic',
+    alignSelf: 'flex-start',
   },
   category: {
     fontSize: 11,
     color: dark.textSecondary,
     fontWeight: '500',
     marginTop: 2,
+    alignSelf: 'flex-start',
   },
   qty: {
     fontSize: 12,
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: dark.surfaceAlt,
     borderRadius: 5,
-    marginEnd: 6,
+    marginEnd: 16,
     paddingHorizontal: 1,
     paddingVertical: 1,
   },
