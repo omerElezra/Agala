@@ -90,7 +90,7 @@ Agala/
 │   ├── _layout.tsx              # Root layout — auth guard, RTL forcing, dark theme
 │   ├── auth.tsx                 # Login / Sign-up screen (inline banners, web-safe)
 │   ├── (tabs)/
-│   │   ├── _layout.tsx          # Tab navigation — 3 tabs with FontAwesome icons
+│   │   ├── _layout.tsx          # Tab navigation — 3 tabs, MaterialCommunityIcons exit icon, safe-area tab bar
 │   │   ├── index.tsx            # Shopping list — sort modes, collapsible sections, FAB
 │   │   ├── two.tsx              # Purchase history — date filtering, grouped by date
 │   │   └── settings.tsx         # Settings — profile, household, CSV import
@@ -99,11 +99,11 @@ Agala/
 ├── src/
 │   ├── components/
 │   │   ├── AddProductSheet.tsx   # Add product modal — search, recent, quantity picker
-│   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback
+│   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback, purchased alignment spacer
 │   │   ├── SnoozeSheet.tsx       # Snooze action sheet
 │   │   └── SuggestionChips.tsx   # AI suggestion chips
 │   ├── hooks/
-│   │   └── useAuth.ts           # Auth state — session, profile fetch/create, sign-out
+│   │   └── useAuth.ts           # Auth state — session, profile fetch/create, sign-out, refreshProfile
 │   ├── lib/
 │   │   └── supabase.ts          # Supabase client — AsyncStorage, SSR-safe
 │   ├── store/
@@ -231,12 +231,12 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 |:-----|:------|:-----------|
 | `src/store/shoppingListStore.ts` | ~500 | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging |
 | `app/item/[id].tsx` | ~1257 | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, delete |
-| `app/(tabs)/settings.tsx` | ~603 | Profile editing, household management, CSV import/parse |
+| `app/(tabs)/settings.tsx` | ~622 | Profile editing (refreshProfile), household management, CSV import/parse |
 | `src/components/AddProductSheet.tsx` | ~580 | Product search, recent products, autofill recommendations, quantity picker |
-| `app/(tabs)/two.tsx` | ~565 | Purchase history transaction log with date filtering + delete |
+| `app/(tabs)/two.tsx` | ~567 | Purchase history — compact layout, date filtering, delete transactions |
 | `app/(tabs)/index.tsx` | ~495 | Main list: sort modes, collapsible purchased, suggestions, FAB |
 | `src/utils/categoryDetector.ts` | ~400 | 16 Israeli supermarket categories, 400+ Hebrew keywords |
-| `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate flash, swipe gestures |
+| `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate, swipe, qty controls, purchased alignment spacer |
 | `constants/theme.ts` | ~66 | Lavender-blue + teal palette, all semantic color tokens |
 
 ---

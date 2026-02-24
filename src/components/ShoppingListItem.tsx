@@ -152,6 +152,7 @@ export function ShoppingListItem({
       </TouchableOpacity>
 
       {/* Quantity +/- controls (only for active items) */}
+      {isPurchased && <View style={styles.qtySpacer} />}
       {!isPurchased && (
         <View style={styles.qtyControls}>
           <TouchableOpacity
@@ -173,26 +174,25 @@ export function ShoppingListItem({
         </View>
       )}
 
-      {/* Product info — tap to open detail page */}
+      {/* daomer */}
+      {/* Product info — RIGHT side: name on top, category below */}
       <TouchableOpacity
         style={styles.info}
         onPress={() => router.push(`/item/${item.id}`)}
         activeOpacity={0.7}
       >
         <Text style={[styles.name, isPurchased && styles.namePurchased]}>
-          {productName}
+          {productName}{isPurchased && item.quantity > 1 && (
+            <Text style={styles.purchasedQty}> ×{item.quantity}</Text>
+          )}
         </Text>
+        
         {category !== '' && (
-          <View style={styles.meta}>
-            <Text style={styles.category}>{category}</Text>
-          </View>
+          <Text style={styles.category}>{category}</Text>
         )}
       </TouchableOpacity>
 
-      {/* Show quantity badge for purchased items */}
-      {isPurchased && item.quantity > 1 && (
-        <Text style={styles.purchasedQty}>×{item.quantity}</Text>
-      )}
+
     </Animated.View>
   );
 
@@ -220,26 +220,27 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingStart: 16,
-    paddingEnd: 16,
+    paddingVertical: 10,
+    paddingStart: 14,
+    paddingEnd: 14,
     backgroundColor: dark.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 1,
     borderBottomColor: dark.border,
+    marginBottom: 5,
   },
   purchasedBg: {
     backgroundColor: dark.purchasedBg,
     opacity: 0.6,
   },
   checkbox: {
-    width: 38,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 3.5,
+    width: 34,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 3,
     borderColor: dark.checkbox,
     alignItems: 'center',
     justifyContent: 'center',
-    marginEnd: 12,
+    marginEnd: 25,
   },
   checkboxChecked: {
     backgroundColor: dark.checkboxChecked,
@@ -270,9 +271,10 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 3,
+    alignItems: 'flex-end',
   },
   name: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: dark.text,
   },
@@ -281,35 +283,34 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     fontStyle: 'italic',
   },
-  meta: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 3,
-  },
   category: {
-    fontSize: 12,
+    fontSize: 11,
     color: dark.textSecondary,
     fontWeight: '500',
+    marginTop: 2,
   },
   qty: {
     fontSize: 12,
     color: dark.accent,
     fontWeight: '700',
   },
+  qtySpacer: {
+    width: 57,
+    marginEnd: 6,
+  },
   qtyControls: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: dark.surfaceAlt,
-    borderRadius: 10,
-    marginEnd: 10,
-    paddingHorizontal: 3,
-    paddingVertical: 3,
+    borderRadius: 5,
+    marginEnd: 6,
+    paddingHorizontal: 1,
+    paddingVertical: 1,
   },
   qtyBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 25,
+    height: 25,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -317,16 +318,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: dark.accent,
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   qtyBtnDisabled: {
     color: dark.textMuted,
   },
   qtyValue: {
-    fontSize: 15,
+    fontSize: 11,
     color: dark.text,
     fontWeight: '800',
-    minWidth: 24,
+    minWidth: 15,
     textAlign: 'center',
   },
   purchasedQty: {

@@ -19,7 +19,7 @@ import { detectCategory } from '@/src/utils/categoryDetector';
 import { useShoppingListStore } from '@/src/store/shoppingListStore';
 
 export default function SettingsScreen() {
-  const { user, signOut, isLoading } = useAuth();
+  const { user, signOut, isLoading, refreshProfile } = useAuth();
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -56,11 +56,12 @@ export default function SettingsScreen() {
     if (error) {
       showBanner('שגיאה בעדכון השם', 'error');
     } else {
+      await refreshProfile();
       showBanner('השם עודכן בהצלחה', 'success');
       setEditingName(false);
     }
     setSaving(false);
-  }, [user, newName]);
+  }, [user, newName, refreshProfile]);
 
   // ── Copy household ID ──────────────────────────────────────
   const handleCopyHousehold = useCallback(async () => {
