@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
+import Constants from 'expo-constants';
 import { supabase } from '@/src/lib/supabase';
 import { useAuth } from '@/src/hooks/useAuth';
 import { dark } from '@/constants/theme';
@@ -389,7 +390,7 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>אודות</Text>
           <View style={styles.row}>
             <Text style={styles.label}>גרסה</Text>
-            <Text style={styles.value}>1.0.0</Text>
+            <Text style={styles.value}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>יוצר</Text>
@@ -397,7 +398,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>עיצוב ופיתוח</Text>
-            <Text style={[styles.value, { color: dark.accent }]}>@omerElezra</Text>
+            <Text style={[styles.value, { color: dark.accent }]}>@OmerElezra</Text>
           </View>
         </View>
 
