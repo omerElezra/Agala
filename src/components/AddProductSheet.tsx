@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { dark } from "@/constants/theme";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -6,26 +7,32 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
-import { supabase } from '../lib/supabase';
-import { useShoppingListStore } from '../store/shoppingListStore';
-import { dark } from '@/constants/theme';
-import { detectCategory } from '../utils/categoryDetector';
-import type { Database } from '../types/database';
+} from "react-native";
+import { supabase } from "../lib/supabase";
+import { useShoppingListStore } from "../store/shoppingListStore";
+import type { Database } from "../types/database";
+import { detectCategory } from "../utils/categoryDetector";
 
-type ProductRow = Database['public']['Tables']['products']['Row'];
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
 
 interface AddProductSheetProps {
   householdId: string;
   onClose: () => void;
+  initialQuery?: string;
 }
 
-export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) {
-  const [query, setQuery] = useState('');
+export function AddProductSheet({
+  householdId,
+  onClose,
+  initialQuery = "",
+}: AddProductSheetProps) {
+  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<ProductRow[]>([]);
   const [recentProducts, setRecentProducts] = useState<ProductRow[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ProductRow | null>(
+    null,
+  );
   const [quantity, setQuantity] = useState(1);
   const [existsMessage, setExistsMessage] = useState<string | null>(null);
   const addItem = useShoppingListStore((s) => s.addItem);
@@ -34,11 +41,11 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
-        .from('shopping_list')
-        .select('product:products(*)')
-        .eq('household_id', householdId)
-        .eq('status', 'purchased')
-        .order('purchased_at', { ascending: false })
+        .from("shopping_list")
+        .select("product:products(*)")
+        .eq("household_id", householdId)
+        .eq("status", "purchased")
+        .order("purchased_at", { ascending: false })
         .limit(200);
 
       if (data) {
@@ -68,9 +75,9 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
     const timer = setTimeout(async () => {
       setIsSearching(true);
       const { data } = await supabase
-        .from('products')
-        .select('*')
-        .ilike('name', `%${query}%`)
+        .from("products")
+        .select("*")
+        .ilike("name", `%${query}%`)
         .limit(15);
 
       setResults(data ?? []);
@@ -80,19 +87,21 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
     return () => clearTimeout(timer);
   }, [query]);
 
-  const handleSelect = useCallback(
-    (product: ProductRow) => {
-      setSelectedProduct(product);
-      setQuantity(1);
-    },
-    [],
-  );
+  const handleSelect = useCallback((product: ProductRow) => {
+    setSelectedProduct(product);
+    setQuantity(1);
+  }, []);
 
   const handleConfirmAdd = useCallback(async () => {
     if (!selectedProduct) return;
     setExistsMessage(null);
-    const result = addItem(selectedProduct.id, householdId, quantity, selectedProduct);
-    if (result === 'exists') {
+    const result = addItem(
+      selectedProduct.id,
+      householdId,
+      quantity,
+      selectedProduct,
+    );
+    if (result === "exists") {
       setExistsMessage(`"${selectedProduct.name}" כבר נמצא ברשימה`);
       return;
     }
@@ -115,7 +124,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
     // 1. Check if an active item with the same product name already exists
     const duplicate = items.find(
       (i) =>
-        i.status === 'active' &&
+        i.status === "active" &&
         i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
     );
     if (duplicate) {
@@ -125,9 +134,9 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
 
     // 2. Reuse existing product if one with this name exists
     const { data: existingProduct } = await supabase
-      .from('products')
-      .select('*')
-      .ilike('name', trimmed)
+      .from("products")
+      .select("*")
+      .ilike("name", trimmed)
       .limit(1)
       .maybeSingle();
 
@@ -144,10 +153,10 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
         const firstWord = trimmed.split(/\s+/)[0];
         if (firstWord && firstWord.length >= 2) {
           const { data: similar } = await supabase
-            .from('products')
-            .select('category')
-            .ilike('name', `%${firstWord}%`)
-            .not('category', 'is', null)
+            .from("products")
+            .select("category")
+            .ilike("name", `%${firstWord}%`)
+            .not("category", "is", null)
             .limit(1)
             .maybeSingle();
           if (similar?.category) category = similar.category;
@@ -155,7 +164,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
       }
 
       const { data: newProduct, error } = await supabase
-        .from('products')
+        .from("products")
         .insert({
           name: trimmed,
           is_custom: true,
@@ -166,14 +175,19 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
         .single();
 
       if (error || !newProduct) {
-        console.error('[AddProduct] create error:', error?.message);
+        console.error("[AddProduct] create error:", error?.message);
         return;
       }
       productToAdd = newProduct;
     }
 
-    const result = addItem(productToAdd.id, householdId, quantity, productToAdd);
-    if (result === 'exists') {
+    const result = addItem(
+      productToAdd.id,
+      householdId,
+      quantity,
+      productToAdd,
+    );
+    if (result === "exists") {
       setExistsMessage(`"${trimmed}" כבר נמצא ברשימה`);
       return;
     }
@@ -185,7 +199,7 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
     (product: ProductRow) => {
       setExistsMessage(null);
       const result = addItem(product.id, householdId, 1, product);
-      if (result === 'exists') {
+      if (result === "exists") {
         setExistsMessage(`"${product.name}" כבר נמצא ברשימה`);
         return;
       }
@@ -246,10 +260,16 @@ export function AddProductSheet({ householdId, onClose }: AddProductSheetProps) 
             </TouchableOpacity>
           </View>
           <View style={styles.qtyActions}>
-            <TouchableOpacity style={styles.qtyConfirmBtn} onPress={handleConfirmAdd}>
+            <TouchableOpacity
+              style={styles.qtyConfirmBtn}
+              onPress={handleConfirmAdd}
+            >
               <Text style={styles.qtyConfirmText}>הוסף לרשימה</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.qtyCancelBtn} onPress={handleCancelSelection}>
+            <TouchableOpacity
+              style={styles.qtyCancelBtn}
+              onPress={handleCancelSelection}
+            >
               <Text style={styles.qtyCancelText}>חזרה</Text>
             </TouchableOpacity>
           </View>
@@ -336,9 +356,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingStart: 16,
     paddingEnd: 16,
     paddingVertical: 14,
@@ -347,13 +367,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 19,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.text,
   },
   closeBtn: {
     fontSize: 22,
     color: dark.textSecondary,
-    fontWeight: '300',
+    fontWeight: "300",
   },
   input: {
     marginStart: 16,
@@ -368,11 +388,11 @@ const styles = StyleSheet.create({
     color: dark.inputText,
   },
   searching: {
-    textAlign: 'center',
+    textAlign: "center",
     color: dark.secondary,
     fontSize: 14,
     marginBottom: 8,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   existsBanner: {
     backgroundColor: dark.warningBg,
@@ -382,12 +402,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: dark.warning + '44',
+    borderColor: dark.warning + "44",
   },
   existsText: {
     color: dark.warning,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   list: {
     flex: 1,
@@ -395,9 +415,9 @@ const styles = StyleSheet.create({
     paddingEnd: 16,
   },
   resultRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: dark.border,
@@ -405,16 +425,16 @@ const styles = StyleSheet.create({
   resultName: {
     fontSize: 16,
     color: dark.text,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   resultCat: {
     fontSize: 13,
     color: dark.textSecondary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   createBtn: {
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     backgroundColor: dark.successBg,
     borderRadius: 14,
     marginTop: 10,
@@ -425,7 +445,7 @@ const styles = StyleSheet.create({
   createBtnText: {
     fontSize: 15,
     color: dark.success,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   recentSection: {
     paddingStart: 16,
@@ -436,20 +456,20 @@ const styles = StyleSheet.create({
   },
   recentTitle: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.secondary,
     marginBottom: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   recentGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
   },
   recentChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: dark.chip,
     borderRadius: 22,
     paddingVertical: 9,
@@ -462,21 +482,21 @@ const styles = StyleSheet.create({
   recentChipText: {
     fontSize: 14,
     color: dark.chipText,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   recentPlus: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.secondary,
   },
   hintText: {
-    textAlign: 'center',
+    textAlign: "center",
     color: dark.textMuted,
     fontSize: 14,
     marginTop: 20,
   },
   noResults: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: 30,
     paddingBottom: 10,
   },
@@ -487,7 +507,7 @@ const styles = StyleSheet.create({
   noResultsText: {
     fontSize: 15,
     color: dark.textSecondary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   noResultsHint: {
     fontSize: 13,
@@ -506,46 +526,46 @@ const styles = StyleSheet.create({
   },
   qtyProductName: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.text,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 14,
   },
   qtyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 18,
   },
   qtyLabel: {
     fontSize: 15,
     color: dark.textSecondary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   qtyBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
     backgroundColor: dark.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   qtyBtnText: {
     fontSize: 20,
-    color: '#fff',
-    fontWeight: '800',
+    color: "#fff",
+    fontWeight: "800",
     lineHeight: 22,
   },
   qtyValue: {
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.text,
     minWidth: 32,
-    textAlign: 'center',
+    textAlign: "center",
   },
   qtyActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 14,
     marginTop: 16,
   },
@@ -557,8 +577,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   qtyConfirmText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 15,
   },
   qtyCancelBtn: {
@@ -569,6 +589,6 @@ const styles = StyleSheet.create({
   qtyCancelText: {
     color: dark.textMuted,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

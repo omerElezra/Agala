@@ -19,7 +19,17 @@ export interface SuggestionItem {
   productId: string;
   product: ProductRow;
   confidenceScore: number;
+  /** Days until next predicted purchase (negative = overdue). */
+  daysUntilNextBuy: number | null;
 }
+
+/** Configurable thresholds for the AI suggestion system. */
+export const AI_SUGGESTION_CONFIG = {
+  /** Minimum confidence score to show a suggestion chip. */
+  confidenceThreshold: 50,
+  /** Items overdue or due within this many days are "urgent". */
+  urgentWithinDays: 0,
+} as const;
 
 interface OfflineAction {
   itemId: string;
@@ -117,7 +127,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       .select('*, product:products(*)')
       .eq('household_id', householdId)
       .eq('auto_add_status', 'suggest_only')
-      .gte('confidence_score', 50)
+      .gte('confidence_score', AI_SUGGESTION_CONFIG.confidenceThreshold)
       .order('confidence_score', { ascending: false });
 
     if (error || !data) {
@@ -130,14 +140,35 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     type RuleWithProduct = InventoryRuleRow & { product: ProductRow };
 
+    const now = Date.now();
+
     const suggestions: SuggestionItem[] = (data as RuleWithProduct[])
       .filter((rule) => !activeProductIds.has(rule.product_id))
-      .map((rule) => ({
-        id: rule.id,
-        productId: rule.product_id,
-        product: rule.product,
-        confidenceScore: rule.confidence_score,
-      }));
+      .map((rule) => {
+        // Compute days until next predicted purchase
+        let daysUntilNextBuy: number | null = null;
+        if (rule.last_purchased_at && rule.ema_days > 0) {
+          const lastDate = new Date(rule.last_purchased_at).getTime();
+          const nextDate = lastDate + rule.ema_days * 24 * 60 * 60 * 1000;
+          daysUntilNextBuy = Math.ceil((nextDate - now) / (24 * 60 * 60 * 1000));
+        }
+
+        return {
+          id: rule.id,
+          productId: rule.product_id,
+          product: rule.product,
+          confidenceScore: rule.confidence_score,
+          daysUntilNextBuy,
+        };
+      })
+      // Sort: urgent items first (overdue/due today), then by descending confidence
+      .sort((a, b) => {
+        const aUrgent = a.daysUntilNextBuy !== null && a.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
+        const bUrgent = b.daysUntilNextBuy !== null && b.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
+        if (aUrgent && !bUrgent) return -1;
+        if (!aUrgent && bUrgent) return 1;
+        return b.confidenceScore - a.confidenceScore;
+      });
 
     set({ suggestions });
   },
