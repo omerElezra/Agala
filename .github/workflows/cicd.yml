@@ -128,8 +128,8 @@ jobs:
       - name: Build Android (preview)
         run: eas build --platform android --profile preview --non-interactive
 
-      # - name: Build Android (production)
-      #   run: eas build --platform android --profile production --non-interactive
+      - name: Build Android (production - AAB for Google Play)
+        run: eas build --platform android --profile production --non-interactive
 
   release:
     name: GitHub Release
