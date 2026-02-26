@@ -1,7 +1,7 @@
 {
   "name": "agala",
   "main": "expo-router/entry",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
     "name": "Omer Elezra",
     "url": "https://github.com/omerElezra"
