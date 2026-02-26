@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Platform,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,8 +15,10 @@ import {
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/src/lib/supabase';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useShoppingListStore } from '@/src/store/shoppingListStore';
 import { dark } from '@/constants/theme';
 import type { Database } from '@/src/types/database';
 
@@ -33,11 +37,11 @@ interface PurchaseTransaction {
 
 type ListRow =
   | PurchaseTransaction
-  | { type: 'header'; title: string; key: string };
+  | { type: 'header'; title: string; isToday: boolean; count: number; key: string };
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
 
-function formatDateHebrew(dateStr: string): string {
+function formatDateHebrew(dateStr: string): { label: string; isToday: boolean } {
   const d = new Date(dateStr);
   const today = new Date();
   const yesterday = new Date();
@@ -48,14 +52,27 @@ function formatDateHebrew(dateStr: string): string {
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate();
 
-  if (isSameDay(d, today)) return 'היום';
-  if (isSameDay(d, yesterday)) return 'אתמול';
+  if (isSameDay(d, today)) {
+    return {
+      label: `היום, ${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`,
+      isToday: true,
+    };
+  }
+  if (isSameDay(d, yesterday)) {
+    return {
+      label: `אתמול, ${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`,
+      isToday: false,
+    };
+  }
 
-  return d.toLocaleDateString('he-IL', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return {
+    label: d.toLocaleDateString('he-IL', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }),
+    isToday: false,
+  };
 }
 
 export default function HistoryScreen() {
@@ -67,6 +84,8 @@ export default function HistoryScreen() {
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customDate, setCustomDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [addedItemId, setAddedItemId] = useState<string | null>(null);
+  const [deletedItemId, setDeletedItemId] = useState<string | null>(null);
 
   // ── Filter items by date ───────────────────────────────────
   const filteredItems = useMemo(() => {
@@ -177,10 +196,16 @@ export default function HistoryScreen() {
 
     const flat: ListRow[] = [];
     for (const [dateKey, items] of groups) {
-      const label = items[0]?.purchased_at
+      const fmt = items[0]?.purchased_at
         ? formatDateHebrew(items[0].purchased_at)
-        : 'לא ידוע';
-      flat.push({ type: 'header', title: `${label} (${items.length})`, key: `h-${dateKey}` });
+        : { label: 'לא ידוע', isToday: false };
+      flat.push({
+        type: 'header',
+        title: fmt.label,
+        isToday: fmt.isToday,
+        count: items.length,
+        key: `h-${dateKey}`,
+      });
       flat.push(...items);
     }
 
@@ -201,34 +226,51 @@ export default function HistoryScreen() {
   // ── Main UI ────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      {/* Date filter bar */}
-      <View style={styles.filterBar}>
-        {([
-          ['all', 'הכל'],
-          ['today', 'היום'],
-          ['week', 'שבוע'],
-          ['month', 'חודש'],
-        ] as [DateFilter, string][]).map(([key, label]) => (
+      {/* ── Sticky header ─────────────────────────────────── */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>היסטוריית רכישות</Text>
+
+        {/* Filter pills */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {([
+            ['all', 'הכל'],
+            ['today', 'היום'],
+            ['week', 'השבוע'],
+            ['month', 'החודש'],
+          ] as [DateFilter, string][]).map(([key, label]) => (
+            <TouchableOpacity
+              key={key}
+              style={[styles.pill, dateFilter === key && styles.pillActive]}
+              onPress={() => setDateFilter(key)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.pillText, dateFilter === key && styles.pillTextActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          ))}
           <TouchableOpacity
-            key={key}
-            style={[styles.filterChip, dateFilter === key && styles.filterChipActive]}
-            onPress={() => setDateFilter(key)}
+            style={[styles.pill, dateFilter === 'custom' && styles.pillActive]}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.8}
           >
-            <Text style={[styles.filterChipText, dateFilter === key && styles.filterChipTextActive]}>
-              {label}
+            <Ionicons
+              name="calendar-outline"
+              size={14}
+              color={dateFilter === 'custom' ? '#fff' : dark.textSecondary}
+              style={{ marginEnd: 4 }}
+            />
+            <Text style={[styles.pillText, dateFilter === 'custom' && styles.pillTextActive]}>
+              {dateFilter === 'custom'
+                ? customDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
+                : 'בחר תאריך'}
             </Text>
           </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={[styles.filterChip, dateFilter === 'custom' && styles.filterChipActive]}
-          onPress={() => setShowDatePicker(true)}
-        >
-          <Text style={[styles.filterChipText, dateFilter === 'custom' && styles.filterChipTextActive]}>
-            {dateFilter === 'custom'
-              ? `📅 ${customDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}`
-              : '📅 בחר תאריך'}
-          </Text>
-        </TouchableOpacity>
+        </ScrollView>
       </View>
 
       {/* Date picker modal */}
@@ -320,24 +362,38 @@ export default function HistoryScreen() {
           }}
         />
       )}
+
+      {/* ── List ──────────────────────────────────────────── */}
       <FlatList
         data={listData}
         keyExtractor={(row) => ('type' in row ? row.key : row.id)}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={dark.accent} />
         }
         renderItem={({ item: row }) => {
+          // ── Date group header ──
           if ('type' in row) {
             return (
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>{row.title}</Text>
+                <Ionicons
+                  name={row.isToday ? 'today-outline' : 'calendar-outline'}
+                  size={15}
+                  color={row.isToday ? dark.accent : dark.textSecondary}
+                />
+                <Text style={[styles.sectionTitle, row.isToday && styles.sectionTitleToday]}>
+                  {row.title}
+                </Text>
+                <View style={styles.sectionBadge}>
+                  <Text style={styles.sectionBadgeText}>{row.count}</Text>
+                </View>
               </View>
             );
           }
 
+          // ── Purchase item card ──
           const productName = row.product?.name ?? '';
-          const category = row.product?.category ?? '';
+          const category = row.product?.category ?? 'ללא קטגוריה';
           const time = row.purchased_at
             ? new Date(row.purchased_at).toLocaleTimeString('he-IL', {
                 hour: '2-digit',
@@ -345,38 +401,99 @@ export default function HistoryScreen() {
               })
             : '';
 
+          const isAdded = addedItemId === row.id;
+          const isDeleted = deletedItemId === row.id;
+
           return (
-            <View style={styles.itemRow}>
-              <View style={styles.itemBadge}>
-                <Text style={styles.itemBadgeText}>🛒</Text>
-              </View>
-              <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{productName} {row.quantity > 1 && (<Text style={styles.itemQty}> {row.quantity}x</Text>)}</Text>
-                <View style={styles.itemMeta}>
-                  {category !== '' && (
-                    <Text style={styles.itemCategory}>{category}</Text>
-                  )}
-                  {time !== '' && (
-                    <Text style={styles.itemTime}>{time}</Text>
-                  )}
+            <View style={styles.itemCard}>
+              <View style={[styles.itemCardInner, isDeleted && styles.itemCardDeleted]}>
+                {/* Delete button */}
+                <TouchableOpacity
+                  style={[styles.deleteBtn, isDeleted && styles.deleteBtnDeleted]}
+                  onPress={() => {
+                    const doDelete = () => {
+                      setDeletedItemId(row.id);
+                      setTimeout(() => {
+                        handleDeleteTransaction(row.id);
+                        setDeletedItemId((prev) => (prev === row.id ? null : prev));
+                      }, 800);
+                    };
+                    if (Platform.OS === 'web') {
+                      if (window.confirm(`למחוק את "${productName}" מהיסטוריית הרכישות?\n\nשים לב: מחיקה תשפיע על חיזוי הקנייה הבאה.`)) {
+                        doDelete();
+                      }
+                    } else {
+                      Alert.alert(
+                        `🗑️ מחיקת ${productName}`,
+                        `האם למחוק את "${productName}" מהיסטוריית הרכישות?\n\nשים לב: מחיקה תשפיע על חיזוי הקנייה הבאה.`,
+                        [
+                          { text: 'לא, השאר', style: 'cancel' },
+                          { text: 'כן, מחק', style: 'destructive', onPress: doDelete },
+                        ],
+                      );
+                    }
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons
+                    name={isDeleted ? 'close-circle' : 'trash-outline'}
+                    size={isDeleted ? 18 : 16}
+                    color={isDeleted ? '#fff' : dark.textMuted}
+                  />
+                </TouchableOpacity>
+
+                {/* Info */}
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemName} numberOfLines={1}>
+                    {productName}
+                    {row.quantity > 1 && (
+                      <Text style={styles.itemQty}>{` ×${row.quantity}`}</Text>
+                    )}
+                  </Text>
+                  <Text style={[styles.itemMeta, isDeleted && styles.itemMetaDeleted]} numberOfLines={1}>
+                    {isDeleted
+                      ? '🗑️ נמחק מההיסטוריה...'
+                      : isAdded
+                        ? '✓ נוסף לעגלה'
+                        : [category, time].filter(Boolean).join(' • ')}
+                  </Text>
                 </View>
+
+                {/* Add-to-cart icon button */}
+                <TouchableOpacity
+                  style={[styles.addCartBtn, isAdded && styles.addCartBtnAdded]}
+                  onPress={() => {
+                    if (!row.product_id || !user?.household_id) return;
+                    const result = useShoppingListStore.getState().addItem(
+                      row.product_id,
+                      user.household_id,
+                      row.quantity,
+                      row.product,
+                    );
+                    setAddedItemId(row.id);
+                    setTimeout(() => setAddedItemId((prev) => (prev === row.id ? null : prev)), 1500);
+                    if (result === 'exists' && Platform.OS !== 'web') {
+                      Alert.alert('כבר ברשימה', `${productName} כבר נמצא ברשימה`);
+                    }
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons
+                    name={isAdded ? 'checkmark-circle' : 'cart-outline'}
+                    size={18}
+                    color={isAdded ? '#fff' : dark.accent}
+                  />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleDeleteTransaction(row.id)}
-                activeOpacity={0.6}
-              >
-                <Text style={styles.deleteBtnText}>🗑️</Text>
-              </TouchableOpacity>
             </View>
           );
         }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyEmoji}>📋</Text>
+            <Ionicons name="receipt-outline" size={56} color={dark.textMuted} />
             <Text style={styles.emptyText}>אין היסטוריית רכישות</Text>
             <Text style={styles.emptySubtext}>
-              כל רכישה שתבצעו תירשם כאן כלוג פעילות
+              כל רכישה שתבצעו תירשם כאן
             </Text>
           </View>
         }
@@ -385,7 +502,7 @@ export default function HistoryScreen() {
   );
 }
 
-// ── Styles (Dark mode, RTL-safe) ────────────────────────────
+// ── Styles ────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -397,40 +514,52 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: dark.background,
   },
-  listContent: {
-    paddingBottom: 80,
-  },
-  filterBar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    backgroundColor: dark.surface,
+
+  // ── Header ──────────────────────────────────────────────────
+  header: {
+    paddingTop: 8,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+    backgroundColor: dark.background,
     borderBottomWidth: 1,
     borderBottomColor: dark.border,
   },
-  filterChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 16,
-    backgroundColor: dark.surfaceAlt,
-    borderWidth: 1.5,
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: dark.text,
+    marginBottom: 12,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 2,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: dark.surface,
+    borderWidth: 1,
     borderColor: dark.border,
   },
-  filterChipActive: {
+  pillActive: {
     backgroundColor: dark.accent,
     borderColor: dark.accent,
   },
-  filterChipText: {
-    fontSize: 12,
-    color: dark.textMuted,
+  pillText: {
+    fontSize: 13,
+    color: dark.textSecondary,
     fontWeight: '600',
   },
-  filterChipTextActive: {
+  pillTextActive: {
     color: '#fff',
     fontWeight: '700',
   },
+
+  // ── Date picker ─────────────────────────────────────────────
   datePickerOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.65)',
@@ -465,103 +594,124 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 20,
   },
+
+  // ── List ────────────────────────────────────────────────────
+  listContent: {
+    paddingBottom: 90,
+  },
+
+  // ── Section header ──────────────────────────────────────────
   sectionHeader: {
-    paddingStart: 16,
-    paddingEnd: 16,
-    paddingTop: 14,
-    paddingBottom: 6,
-    backgroundColor: dark.sectionBg,
-    borderBottomWidth: 1,
-    borderBottomColor: dark.border,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: dark.secondary,
-    letterSpacing: 0.3,
-  },
-  itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingStart: 12,
-    paddingEnd: 12,
-    backgroundColor: dark.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: dark.border,
-    marginBottom: 1,
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
   },
-  itemBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: dark.textSecondary,
+    letterSpacing: 0.3,
+  },
+  sectionTitleToday: {
+    color: dark.accent,
+  },
+  sectionBadge: {
+    backgroundColor: dark.surfaceAlt,
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    marginStart: 2,
+  },
+  sectionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: dark.textMuted,
+  },
+
+  // ── Item card ───────────────────────────────────────────────
+  itemCard: {
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  itemCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: dark.surface,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: dark.border,
+  },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
     backgroundColor: dark.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginEnd: 8,
+    marginEnd: 10,
   },
-  itemBadgeText: {
-    fontSize: 11,
+  deleteBtnDeleted: {
+    backgroundColor: '#e74c3c',
+  },
+  itemCardDeleted: {
+    opacity: 0.6,
+    borderColor: 'rgba(231,76,60,0.4)',
+  },
+  itemMetaDeleted: {
+    color: '#e74c3c',
   },
   itemInfo: {
     flex: 1,
   },
-  
   itemName: {
     fontSize: 14,
-    fontWeight: '600',
-    color: dark.text,
-  },
-  
-  itemMeta: {
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 3,
-  },
-  
-  itemCategory: {
-    fontSize: 12,
-    color: dark.textSecondary,
-    fontWeight: '500',
-  },
-  
-  itemQty: {
-    fontSize: 12,
-    color: dark.accent,
     fontWeight: '700',
+    color: dark.text,
+    lineHeight: 18,
   },
-  itemTime: {
-    fontSize: 12,
-    color: dark.textMuted,
+  itemQty: {
+    fontSize: 13,
+    color: dark.accent,
+    fontWeight: '800',
   },
-  deleteBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  itemMeta: {
+    fontSize: 11,
+    color: dark.textSecondary,
+    marginTop: 2,
+  },
+  addCartBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(139,159,232,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginStart: 8,
   },
-  deleteBtnText: {
-    fontSize: 16,
+  addCartBtnAdded: {
+    backgroundColor: dark.success,
   },
+
+  // ── Empty state ─────────────────────────────────────────────
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 100,
-  },
-  emptyEmoji: {
-    fontSize: 56,
-    marginBottom: 16,
+    gap: 8,
   },
   emptyText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: dark.text,
+    marginTop: 8,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: 13,
     color: dark.textSecondary,
-    marginTop: 6,
   },
 });
