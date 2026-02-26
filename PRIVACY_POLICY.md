@@ -12,24 +12,26 @@ We collect personal information that you voluntarily provide to us when register
 
 The personal information that we collect depends on the context of your interactions with us and the App, the choices you make and the products and features you use. The personal information we collect can include the following:
 
-*   **Account Information:** When you create an account, we collect your email address and password for authentication purposes.
-*   **App Data:** We collect data related to your use of the App, including your shopping lists, custom items you create, and your purchase history. This data is essential to provide the core functionality of the App, including syncing across devices and providing smart shopping predictions.
+- **Account Information:** When you create an account, we collect your email address and password for authentication purposes.
+- **App Data:** We collect data related to your use of the App, including your shopping lists, custom items you create, and your purchase history. This data is essential to provide the core functionality of the App, including syncing across devices and providing smart shopping predictions.
 
 ## 2. How We Use Your Information
 
 We use personal information collected via our App for a variety of business purposes described below. We process your personal information for these purposes in reliance on our legitimate business interests, in order to enter into or perform a contract with you, with your consent, and/or for compliance with our legal obligations.
 
 We use the information we collect or receive:
-*   **To facilitate account creation and logon process.**
-*   **To provide and manage the App's core features:** This includes saving your shopping lists, syncing them across your devices, and sharing them with your family members or roommates if you choose to do so.
-*   **To improve our services:** We use your purchase history to provide smart AI predictions on when you might need to restock certain items.
+
+- **To facilitate account creation and logon process.**
+- **To provide and manage the App's core features:** This includes saving your shopping lists, syncing them across your devices, and sharing them with your family members or roommates if you choose to do so.
+- **To improve our services:** We use your purchase history to provide smart AI predictions on when you might need to restock certain items.
 
 ## 3. Will Your Information Be Shared With Anyone?
 
 We only share and disclose your information in the following situations:
-*   **Compliance with Laws:** We may disclose your information where we are legally required to do so in order to comply with applicable law, governmental requests, a judicial proceeding, court order, or legal process.
-*   **Vital Interests and Legal Rights:** We may disclose your information where we believe it is necessary to investigate, prevent, or take action regarding potential violations of our policies, suspected fraud, situations involving potential threats to the safety of any person and illegal activities, or as evidence in litigation in which we are involved.
-*   **Third-Party Service Providers:** We may share your data with third-party vendors, service providers, contractors or agents who perform services for us or on our behalf and require access to such information to do that work. Specifically, we use **Supabase** for our backend database and authentication services.
+
+- **Compliance with Laws:** We may disclose your information where we are legally required to do so in order to comply with applicable law, governmental requests, a judicial proceeding, court order, or legal process.
+- **Vital Interests and Legal Rights:** We may disclose your information where we believe it is necessary to investigate, prevent, or take action regarding potential violations of our policies, suspected fraud, situations involving potential threats to the safety of any person and illegal activities, or as evidence in litigation in which we are involved.
+- **Third-Party Service Providers:** We may share your data with third-party vendors, service providers, contractors or agents who perform services for us or on our behalf and require access to such information to do that work. Specifically, we use **Supabase** for our backend database and authentication services.
 
 We **do not** sell your personal information to third parties for marketing or advertising purposes.
 
@@ -43,7 +45,7 @@ We have implemented appropriate technical and organizational security measures d
 
 ## 6. Your Privacy Rights
 
-You have the right to review, change, or terminate your account at any time. 
+You have the right to review, change, or terminate your account at any time.
 If you would like to delete your account and all associated data (including shopping lists and purchase history), you can do so directly within the App's settings or by contacting us. Upon your request to terminate your account, we will deactivate or delete your account and information from our active databases.
 
 ## 7. Updates to This Policy
