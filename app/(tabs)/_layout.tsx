@@ -1,17 +1,17 @@
-import React from 'react';
-import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Tabs, useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import FontAwesome from "@expo/vector-icons/FontAwesome";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { Tabs } from "expo-router";
+import React from "react";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-import { useAuth } from '@/src/hooks/useAuth';
-import { dark } from '@/constants/theme';
+import { useClientOnlyValue } from "@/components/useClientOnlyValue";
+import { dark } from "@/constants/theme";
+import { useAuth } from "@/src/hooks/useAuth";
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
+  name: React.ComponentProps<typeof FontAwesome>["name"];
   color: string;
 }) {
   return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
@@ -21,7 +21,7 @@ function HeaderLogo() {
   return (
     <View style={headerStyles.row}>
       <Image
-        source={require('@/assets/images/icon.png')}
+        source={require("@/assets/images/icon.png")}
         style={headerStyles.logo}
       />
     </View>
@@ -30,22 +30,38 @@ function HeaderLogo() {
 
 function HeaderExit() {
   const { user, signOut } = useAuth();
-  const displayName = user?.display_name || '';
+  const displayName = user?.display_name || "";
   return (
     <View style={headerStyles.exitRow}>
-      {displayName ? <Text style={headerStyles.exitName}>{displayName}</Text> : null}
-      <TouchableOpacity onPress={signOut} style={headerStyles.exitBtn} activeOpacity={0.6}>
-        <MaterialCommunityIcons name="exit-run" size={22} color={dark.textSecondary} />
+      <TouchableOpacity
+        onPress={signOut}
+        style={headerStyles.exitBtn}
+        activeOpacity={0.6}
+      >
+        <MaterialCommunityIcons
+          name="exit-run"
+          size={22}
+          color={dark.textSecondary}
+        />
       </TouchableOpacity>
+      {displayName ? (
+        <Text style={headerStyles.exitName}>{displayName}</Text>
+      ) : null}
     </View>
   );
 }
 
 const headerStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: "row", alignItems: "center" },
   logo: { width: 70, height: 70, borderRadius: 12 },
-  exitRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingEnd: 4 },
-  exitName: { fontSize: 13, fontWeight: '600', color: dark.textSecondary },
+  exitRow: {
+    flexDirection: "row",
+    direction: "ltr",
+    alignItems: "center",
+    gap: 8,
+    paddingEnd: 4,
+  },
+  exitName: { fontSize: 13, fontWeight: "600", color: dark.textSecondary },
   exitBtn: { padding: 8 },
 });
 
@@ -59,7 +75,7 @@ export default function TabLayout() {
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
-        headerTitleAlign: 'center',
+        headerTitleAlign: "center",
         headerStyle: {
           backgroundColor: dark.surface,
           shadowColor: dark.accent,
@@ -68,10 +84,14 @@ export default function TabLayout() {
           elevation: 8,
         },
         headerTintColor: dark.text,
-        headerTitleStyle: { fontWeight: '800', fontSize: 19, letterSpacing: 0.5 },
+        headerTitleStyle: {
+          fontWeight: "800",
+          fontSize: 19,
+          letterSpacing: 0.5,
+        },
         headerTitle: () => <HeaderLogo />,
-        headerLeft: () => null,
-        headerRight: () => <HeaderExit />,
+        headerLeft: () => <HeaderExit />,
+        headerRight: () => null,
         tabBarStyle: {
           backgroundColor: dark.surface,
           borderTopColor: dark.border,
@@ -82,32 +102,37 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: "600",
         },
-        tabBarLabelPosition: 'beside-icon',
-      }}>
-      <Tabs.Screen
-        name="two"
-        options={{
-          title: 'היסטוריה',
-          tabBarIcon: ({ color }) => <TabBarIcon name="history" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'עגלה',
-          tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
-        }}
-      />
+        tabBarLabelPosition: "beside-icon",
+      }}
+    >
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'הגדרות',
+          title: "הגדרות",
           tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
         }}
       />
 
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "עגלה",
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="shopping-cart" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="two"
+        options={{
+          title: "היסטוריה",
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="history" color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

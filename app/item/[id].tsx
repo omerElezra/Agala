@@ -8,8 +8,15 @@ import {
   getSmartDefaultDays,
 } from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +45,7 @@ export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const categoryScrollRef = useRef<ScrollView>(null);
 
   // ── Data state ─────────────────────────────────────────────
   const [item, setItem] = useState<ShoppingListRow | null>(null);
@@ -634,8 +642,45 @@ export default function ItemDetailScreen() {
           title: product.name,
           headerStyle: { backgroundColor: dark.surface },
           headerTintColor: dark.text,
+          headerTitleAlign: "center",
           headerTitleStyle: { fontWeight: "700" },
           headerLeft: () => (
+            <View
+              style={{
+                flexDirection: "row",
+                direction: "ltr",
+                alignItems: "center",
+                gap: 8,
+                paddingEnd: 4,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  signOut().catch(() => {});
+                }}
+                style={{ padding: 8 }}
+                activeOpacity={0.6}
+              >
+                <MaterialCommunityIcons
+                  name="exit-run"
+                  size={22}
+                  color={dark.textSecondary}
+                />
+              </TouchableOpacity>
+              {user?.display_name ? (
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: dark.textSecondary,
+                  }}
+                >
+                  {user.display_name}
+                </Text>
+              ) : null}
+            </View>
+          ),
+          headerRight: () => (
             <TouchableOpacity
               onPress={() => router.back()}
               style={{ paddingHorizontal: 8, paddingVertical: 4 }}
@@ -676,9 +721,13 @@ export default function ItemDetailScreen() {
             {/* Category picker */}
             <Text style={styles.categoryLabel}>קטגוריה</Text>
             <ScrollView
+              ref={categoryScrollRef}
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.categoryScroll}
+              onContentSizeChange={() => {
+                categoryScrollRef.current?.scrollToEnd({ animated: false });
+              }}
             >
               <View style={styles.categoryRow}>
                 <TouchableOpacity
@@ -1254,16 +1303,18 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 14,
     fontWeight: "800",
-    color: dark.secondary,
+    color: dark.text,
     marginBottom: 14,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    textAlign: "right",
   },
   category: {
     fontSize: 13,
     color: dark.secondary,
     marginTop: 8,
     fontWeight: "500",
+    textAlign: "right",
   },
   categoryLabel: {
     fontSize: 13,
@@ -1271,12 +1322,14 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
     fontWeight: "700",
+    textAlign: "right",
   },
   categoryScroll: {
     maxHeight: 36,
+    textAlign: "right",
   },
   categoryRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     gap: 8,
     paddingEnd: 2,
   },
@@ -1311,11 +1364,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: dark.input,
     color: dark.inputText,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
 
   // ── Quantity (compact row) ──────────────────────────────
   qtyCard: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: dark.surface,
@@ -1329,6 +1384,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: dark.text,
+    textAlign: "right",
   },
   qtyCompactRow: {
     flexDirection: "row",
@@ -1387,13 +1443,13 @@ const styles = StyleSheet.create({
     borderColor: dark.border,
   },
   predHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
   },
   predTitleRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     gap: 8,
   },
@@ -1401,6 +1457,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: dark.text,
+    textAlign: "right",
   },
   pillToggle: {
     flexDirection: "row",
@@ -1432,7 +1489,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   innerRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "flex-start",
     gap: 12,
     backgroundColor: dark.background,
@@ -1457,17 +1514,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: dark.textSecondary,
     fontWeight: "500",
+    textAlign: "right",
   },
   innerRowValue: {
     fontSize: 17,
     fontWeight: "700",
     color: dark.text,
     marginTop: 2,
+    textAlign: "right",
   },
   innerRowSub: {
     fontSize: 11,
     color: dark.textSecondary,
     marginTop: 2,
+    textAlign: "right",
   },
 
   // ── Progress bar inside inner row ─────────────────────────
@@ -1525,6 +1585,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: dark.textMuted,
     marginTop: 14,
+    textAlign: "right",
   },
 
   // ── Info footer (inside prediction card) ──────────────────
