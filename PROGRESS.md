@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-02-26
+> Last updated: 2026-02-27
 
 ---
 
@@ -171,6 +171,15 @@
   - AI mode uses `rule.ema_days` with safe history fallback
   - `nextBuyDate` and progress ratio now share the same source-of-truth inputs
 - [x] **Depletion percent reliability fix** — Uses purchase history as primary source for last purchase timestamp, with `rule.last_purchased_at` fallback
+
+### 5p. Navigation, RTL & Visual Alignment Updates (2026-02-27)
+
+- [x] **Global RTL-force removed** — Disabled `I18nManager.allowRTL/forceRTL` flow in root layout; app now relies on explicit per-component alignment/direction styles
+- [x] **Status bar visibility fix** — Added global light status-bar style in root layout so battery/clock/icons are visible over dark backgrounds
+- [x] **Header consistency polish** — Unified username + exit icon order/style (`exit-run`) and aligned header-side behavior across tabs, modal, and item-details header
+- [x] **Item details direction cleanup** — Aligned item-details rows/labels/icons with shopping-list/history behavior to avoid reversed icon/text presentation
+- [x] **History date-filter alignment** — Date filter row and labels aligned to RTL/right-oriented presentation
+- [x] **Shopping list spacing tweak** — Tightened highlight line/card edge presentation in shopping-list item UI
 
 ---
 

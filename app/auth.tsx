@@ -174,12 +174,13 @@ export default function AuthScreen() {
 
           <TextInput
             style={styles.input}
-            placeholder="סיסמה"
+            placeholder="סיסמא"
             placeholderTextColor={dark.placeholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
+            autoCorrect={false}
             textContentType={mode === 'signup' ? 'newPassword' : 'password'}
           />
 
@@ -341,6 +342,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     fontSize: 16,
     color: dark.inputText,
+    textAlign: 'right',
+    writingDirection: 'rtl',
   },
   button: {
     backgroundColor: dark.accent,

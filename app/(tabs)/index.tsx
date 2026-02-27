@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
   },
   titleRow: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
@@ -619,6 +619,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: dark.text,
     letterSpacing: 0.5,
+    textAlign: "right",
   },
 
   // ── Search bar ─────────────────────────────────────────────
@@ -659,7 +660,7 @@ const styles = StyleSheet.create({
 
   // ── Cart section header ────────────────────────────────────
   cartHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "flex-start",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -671,6 +672,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: dark.text,
+    textAlign: "right",
   },
   cartBadge: {
     backgroundColor: dark.surface,
@@ -695,7 +697,7 @@ const styles = StyleSheet.create({
 
   // ── "All Products" section ─────────────────────────────────
   allProductsHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -706,6 +708,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: dark.textSecondary,
+    textAlign: "right",
   },
   toggleArrow: {
     fontSize: 12,
@@ -714,7 +717,7 @@ const styles = StyleSheet.create({
 
   // ── Category header ────────────────────────────────────────
   categoryHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 14,
@@ -728,11 +731,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: dark.textSecondary,
+    textAlign: "right",
   },
 
   // ── All-product card (dark surface, rounded) ───────────────
   allProductCard: {
     flexDirection: "row",
+    direction: "ltr",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: dark.surfaceDark,
@@ -746,6 +751,8 @@ const styles = StyleSheet.create({
   },
   allProductInfo: {
     flex: 1,
+    direction: "rtl",
+    writingDirection: "rtl",
     paddingEnd: 5,
   },
   allProductName: {

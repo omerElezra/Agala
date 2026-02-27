@@ -531,7 +531,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   filterRow: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
+    minWidth: '100%',
+    justifyContent: 'flex-start',
     gap: 8,
     paddingBottom: 2,
   },
@@ -553,6 +555,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: dark.textSecondary,
     fontWeight: '600',
+    textAlign: 'right',
   },
   pillTextActive: {
     color: '#fff',
@@ -572,7 +575,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   datePickerHeader: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -584,6 +587,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: dark.text,
+    textAlign: 'right',
   },
   datePickerDone: {
     fontSize: 16,
@@ -602,7 +606,7 @@ const styles = StyleSheet.create({
 
   // ── Section header ──────────────────────────────────────────
   sectionHeader: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 20,
@@ -614,6 +618,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: dark.textSecondary,
     letterSpacing: 0.3,
+    textAlign: 'right',
   },
   sectionTitleToday: {
     color: dark.accent,
@@ -638,6 +643,7 @@ const styles = StyleSheet.create({
   },
   itemCardInner: {
     flexDirection: 'row',
+    direction: 'ltr',
     alignItems: 'center',
     backgroundColor: dark.surface,
     borderRadius: 14,
@@ -667,6 +673,7 @@ const styles = StyleSheet.create({
   },
   itemInfo: {
     flex: 1,
+    direction: 'rtl',
   },
   itemName: {
     fontSize: 14,

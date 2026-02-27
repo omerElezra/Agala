@@ -243,14 +243,15 @@ const styles = StyleSheet.create({
   // ── Card ───────────────────────────────────────────────────
   card: {
     flexDirection: "row",
+    direction: "ltr",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: dark.surface,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 10,
     borderRadius: dark.cardRadius,
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginBottom: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
@@ -260,6 +261,7 @@ const styles = StyleSheet.create({
   cardHighlighted: {
     borderRightWidth: 4,
     borderRightColor: dark.accent,
+    marginRight: 8,
   },
   cardPurchased: {
     backgroundColor: dark.purchasedBg,
@@ -308,6 +310,8 @@ const styles = StyleSheet.create({
   // ── Product info ───────────────────────────────────────────
   info: {
     flex: 1,
+    direction: "rtl",
+    writingDirection: "rtl",
     paddingEnd: 8,
   },
   name: {
@@ -326,7 +330,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   purchasedQty: {
-    fontSize: 13,
+    fontSize: 3,
     color: dark.textSecondary,
     fontWeight: "700",
   },
@@ -338,9 +342,9 @@ const styles = StyleSheet.create({
     backgroundColor: dark.surfaceDark,
     borderRadius: 20,
     paddingVertical: 4,
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
     marginEnd: 12,
-    gap: 8,
+    gap: 4,
   },
   qtyBtn: {
     width: 25,
