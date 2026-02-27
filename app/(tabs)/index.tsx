@@ -66,7 +66,7 @@ type ListRow =
   | ShoppingItem
   | { type: "header"; title: string; emoji: string; key: string }
   | { type: "divider"; key: string }
-  | { type: "all-products-header"; key: string ,title: string, emoji: string }
+  | { type: "all-products-header"; key: string }
   | { type: "all-product-category"; title: string; emoji: string; key: string }
   | { type: "all-product-item"; item: ShoppingItem; key: string };
 
