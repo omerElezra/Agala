@@ -127,9 +127,12 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Verify EAS CLI
-        run: eas --version
+        run: eas --version && eas whoami
 
       - name: Build Android (production - AAB for Google Play)
+        env:
+          EAS_NO_VCS: "1"
+          EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: eas build --platform android --profile production --non-interactive --no-wait
 
   release:
