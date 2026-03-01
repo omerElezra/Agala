@@ -21,9 +21,6 @@ concurrency:
 permissions:
   contents: write
 
-env:
-  EXPO_NO_TYPESCRIPT_SETUP: "1"
-
 jobs:
   # ── Always runs ──────────────────────────────────────────
   quality:
@@ -36,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
@@ -97,7 +94,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: npm
 
       - name: Install dependencies
@@ -129,11 +126,11 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build Android (preview)
-        run: eas build --platform android --profile preview --non-interactive
+      - name: Verify EAS CLI
+        run: eas --version
 
       - name: Build Android (production - AAB for Google Play)
-        run: eas build --platform android --profile production --non-interactive
+        run: eas build --platform android --profile production --non-interactive --no-wait
 
   release:
     name: GitHub Release
@@ -147,7 +144,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
 
       - name: Bump version in source
         run: |
@@ -156,8 +153,7 @@ jobs:
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             pkg.version = '${VERSION}';
-            fs.wri
-            teFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
           node -e "
             const fs = require('fs');
