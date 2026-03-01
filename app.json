@@ -21,9 +21,11 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0F0F1A"
       },
+      "versionCode": 3,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.omerelezra.agala"
+      "package": "com.omerelezra.agala",
+      "permissions": ["INTERNET", "VIBRATE"]
     },
     "web": {
       "bundler": "metro",
@@ -32,7 +34,8 @@
     },
     "plugins": [
       "expo-router",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-store-review"
     ],
     "experiments": {
       "typedRoutes": true

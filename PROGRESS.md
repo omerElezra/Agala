@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-02-27
+> Last updated: 2026-03-01
 
 ---
 
@@ -180,6 +180,21 @@
 - [x] **Item details direction cleanup** — Aligned item-details rows/labels/icons with shopping-list/history behavior to avoid reversed icon/text presentation
 - [x] **History date-filter alignment** — Date filter row and labels aligned to RTL/right-oriented presentation
 - [x] **Shopping list spacing tweak** — Tightened highlight line/card edge presentation in shopping-list item UI
+
+### 5q. Per-Item Prediction Normalisation & Settings Enhancements (2026-03-01)
+
+- [x] **EMA normalised per 1 item** — All EMA calculations (client-side historyEmaDays, auto-create rule, handleCreateRule AI mode, handleResetToAI, buyCycleStats) now divide each raw purchase interval by the quantity purchased at the start of that interval. `ema_days` always represents a single-unit consumption cycle.
+- [x] **Server-side EMA normalisation** — `supabase/functions/nightly-prediction/index.ts` → `recalculateEMA()` now fetches previous purchase quantity and divides `rawIntervalDays / previousQuantity` per iteration. Tracks `previousQuantity` across the purchase loop.
+- [x] **Next purchase = ema_days × quantity** — Both client (`nextBuyDate`, `progressRatio`) and server (`evaluateRulesAndAct`) multiply the per-item EMA by `lastPurchaseQuantity` to compute the actual expected interval.
+- [x] **UI: "ימים" label, "ליחידה" in description** — AI and manual mode value displays show "כל X ימים" (plain); the subtitle/description line shows "ליחידה" along with purchase count and quantity context.
+- [x] **Manual mode subtitle enhancement** — When lastPurchaseQuantity > 1, shows "ליחידה · קנייה אחרונה ×N → Y ימים" (the actual adjusted interval).
+- [x] **Stats: total units purchased** — Both AI and manual mode stats sections show `totalQty` (sum of all purchase quantities) with label "יח' נקנו" instead of transaction count.
+- [x] **Settings: import section rewrite** — Replaced single CSV import with 3 options: file picker (`expo-document-picker` + `expo-file-system`), clipboard paste, and manual text input area.
+- [x] **Settings: Google Play rate button** — Added solid purple "דרגו אותנו ב-Google Play" button with `Linking.openURL('market://details?id=com.omerelezra.agala')`.
+- [x] **Settings: all text right-aligned** — Added `textAlign: 'right'` to all relevant style definitions (sectionTitle, label, value, nameInput, householdId, hint, joinInput, csvExampleTitle, csvExampleText) and changed editRow/joinRow to `row-reverse`.
+- [x] **Item detail: RTL alignment fix** — `manualEditInline` flexDirection changed to `row-reverse`; miniStatNum and miniStatLabel text aligned right.
+- [x] **06_Nightly_Prediction.md** — New comprehensive technical reference document covering per-item EMA algorithm, execution flow, client-side prediction, data flow, edge cases, and environment variables.
+- [x] **Documentation updated** — Updated all relevant MD files (03_Prediction_Logic, 04_UX_and_DataFlow, 02_Database_Schema, 00_PRD, README, NEXT_FEATURES_PLAN) to reflect per-item normalisation and new features.
 
 ---
 

@@ -523,11 +523,13 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
     borderBottomWidth: 1,
     borderBottomColor: dark.border,
+
   },
   headerTitle: {
     fontSize: 22,
     fontWeight: '800',
     color: dark.text,
+    textAlign: 'right',
     marginBottom: 12,
   },
   filterRow: {
