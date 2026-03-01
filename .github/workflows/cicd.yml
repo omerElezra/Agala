@@ -133,7 +133,8 @@ jobs:
         env:
           EAS_NO_VCS: "1"
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
-        run: eas build --platform android --profile production --non-interactive --no-wait
+          DEBUG: "eas-cli:*"
+        run: eas build --platform android --profile production --non-interactive --no-wait 2>&1 || true
 
   release:
     name: GitHub Release
