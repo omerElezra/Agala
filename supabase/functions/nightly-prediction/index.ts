@@ -16,8 +16,8 @@
 //   3. Recalculate EMA for products purchased since last run.
 // ─────────────────────────────────────────────────────────────
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.97.0';
-import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.97.0";
 
 // ── Constants ────────────────────────────────────────────────
 const ALPHA = 0.3; // EMA smoothing factor
@@ -25,8 +25,8 @@ const CONFIDENCE_AUTO_ADD = 85;
 const CONFIDENCE_SUGGEST = 50;
 
 // ── Supabase client (service role — bypasses RLS) ────────────
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const supabase = createClient(supabaseUrl, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -40,7 +40,7 @@ interface InventoryRule {
   ema_days: number;
   confidence_score: number;
   last_purchased_at: string | null;
-  auto_add_status: 'auto_add' | 'suggest_only' | 'manual_only';
+  auto_add_status: "auto_add" | "suggest_only" | "manual_only";
 }
 
 interface PurchaseRecord {
@@ -54,24 +54,34 @@ serve(async (req: Request) => {
     // REQUIRED: verify the request comes from pg_cron via a shared secret.
     // The CRON_SECRET env var MUST be set in Supabase Dashboard → Edge Functions → Secrets.
     // Without it, the function refuses all requests (fail-closed).
-    const cronSecret = Deno.env.get('CRON_SECRET');
+    const cronSecret = Deno.env.get("CRON_SECRET");
     if (!cronSecret) {
-      console.error('[nightly-prediction] CRON_SECRET is not configured. Aborting.');
+      console.error(
+        "[nightly-prediction] CRON_SECRET is not configured. Aborting.",
+      );
       return new Response(
-        JSON.stringify({ error: 'Server misconfiguration: CRON_SECRET not set' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } },
+        JSON.stringify({
+          error: "Server misconfiguration: CRON_SECRET not set",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    const authHeader = req.headers.get('Authorization');
+    const authHeader = req.headers.get("Authorization");
     if (authHeader !== `Bearer ${cronSecret}`) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    const stats = { processed: 0, autoAdded: 0, suggested: 0, emaUpdated: 0, errors: 0 };
+    const stats = {
+      processed: 0,
+      autoAdded: 0,
+      suggested: 0,
+      emaUpdated: 0,
+      errors: 0,
+    };
 
     // ── STEP 1: Recalculate EMA for recently purchased items ──
     await recalculateEMA(stats);
@@ -79,17 +89,17 @@ serve(async (req: Request) => {
     // ── STEP 2: Evaluate rules and auto-add / suggest ─────────
     await evaluateRulesAndAct(stats);
 
-    console.log('[nightly-prediction] completed:', stats);
+    console.log("[nightly-prediction] completed:", stats);
 
     return new Response(JSON.stringify({ ok: true, stats }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    console.error('[nightly-prediction] fatal error:', err);
+    console.error("[nightly-prediction] fatal error:", err);
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { "Content-Type": "application/json" },
     });
   }
 });
@@ -101,12 +111,12 @@ serve(async (req: Request) => {
 async function recalculateEMA(stats: Record<string, number>): Promise<void> {
   // Fetch all inventory rules that have a last_purchased_at
   const { data: rules, error } = await supabase
-    .from('household_inventory_rules')
-    .select('*')
-    .not('last_purchased_at', 'is', null);
+    .from("household_inventory_rules")
+    .select("*")
+    .not("last_purchased_at", "is", null);
 
   if (error) {
-    console.error('[recalculateEMA] fetch rules error:', error.message);
+    console.error("[recalculateEMA] fetch rules error:", error.message);
     stats.errors++;
     return;
   }
@@ -117,13 +127,13 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
     // Find all purchases for this household+product that happened
     // AFTER the stored last_purchased_at, ordered chronologically.
     const { data: purchases, error: purchaseError } = await supabase
-      .from('shopping_list')
-      .select('purchased_at, quantity')
-      .eq('household_id', rule.household_id)
-      .eq('product_id', rule.product_id)
-      .eq('status', 'purchased')
-      .gt('purchased_at', rule.last_purchased_at!)
-      .order('purchased_at', { ascending: true });
+      .from("shopping_list")
+      .select("purchased_at, quantity")
+      .eq("household_id", rule.household_id)
+      .eq("product_id", rule.product_id)
+      .eq("status", "purchased")
+      .gt("purchased_at", rule.last_purchased_at!)
+      .order("purchased_at", { ascending: true });
 
     if (purchaseError) {
       console.error(
@@ -143,29 +153,53 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
     let latestQuantity = 1;
     let confidenceScore = rule.confidence_score;
 
+    // ema_days is per 1 item — normalise each interval by the qty
+    // that was purchased (consumed) at the START of that interval.
+    // Fetch the quantity from the purchase at last_purchased_at.
+    let previousQuantity = 1;
+    {
+      const { data: prevPurch } = await supabase
+        .from("shopping_list")
+        .select("quantity")
+        .eq("household_id", rule.household_id)
+        .eq("product_id", rule.product_id)
+        .eq("status", "purchased")
+        .lte("purchased_at", rule.last_purchased_at!)
+        .order("purchased_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (prevPurch) previousQuantity = prevPurch.quantity ?? 1;
+    }
+
     for (const purchase of purchases as PurchaseRecord[]) {
       const purchaseDate = new Date(purchase.purchased_at);
-      const intervalDays =
-        (purchaseDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24);
+      const rawIntervalDays =
+        (purchaseDate.getTime() - previousDate.getTime()) /
+        (1000 * 60 * 60 * 24);
 
-      if (intervalDays <= 0) continue; // skip same-day duplicates
+      if (rawIntervalDays <= 0) continue; // skip same-day duplicates
 
-      // EMA_new = α · CurrentInterval + (1 - α) · EMA_old
+      // Per-item interval: raw days / qty consumed during this interval
+      const perItemInterval = rawIntervalDays / previousQuantity;
+
+      // EMA_new = α · perItemInterval + (1 - α) · EMA_old
       if (currentEma === 0) {
-        // First purchase pair: seed EMA with the raw interval
-        currentEma = intervalDays;
+        currentEma = perItemInterval;
       } else {
-        currentEma = ALPHA * intervalDays + (1 - ALPHA) * currentEma;
+        currentEma = ALPHA * perItemInterval + (1 - ALPHA) * currentEma;
       }
 
-      // Positive signal: purchase within 15% of predicted interval → +10
-      const predictedInterval = rule.ema_days > 0 ? rule.ema_days : intervalDays;
-      const variance = Math.abs(intervalDays - predictedInterval) / predictedInterval;
+      // Positive signal: purchase within 15% of predicted per-item interval → +10
+      const predictedInterval =
+        rule.ema_days > 0 ? rule.ema_days : perItemInterval;
+      const variance =
+        Math.abs(perItemInterval - predictedInterval) / predictedInterval;
       if (variance <= 0.15) {
         confidenceScore = Math.min(100, confidenceScore + 10);
       }
 
       previousDate = purchaseDate;
+      previousQuantity = purchase.quantity ?? 1;
       latestPurchasedAt = purchase.purchased_at;
       latestQuantity = purchase.quantity ?? 1;
       stats.emaUpdated++;
@@ -176,17 +210,20 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
 
     // Persist updated rule
     const { error: updateError } = await supabase
-      .from('household_inventory_rules')
+      .from("household_inventory_rules")
       .update({
         ema_days: Math.round(currentEma * 100) / 100, // 2 decimal precision
         confidence_score: Math.round(confidenceScore * 100) / 100,
         last_purchased_at: latestPurchasedAt,
         auto_add_status: autoAddStatus,
       })
-      .eq('id', rule.id);
+      .eq("id", rule.id);
 
     if (updateError) {
-      console.error(`[recalculateEMA] update error for rule ${rule.id}:`, updateError.message);
+      console.error(
+        `[recalculateEMA] update error for rule ${rule.id}:`,
+        updateError.message,
+      );
       stats.errors++;
     }
   }
@@ -200,18 +237,20 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
 //
 //   We check: NextDate <= NOW()
 // ─────────────────────────────────────────────────────────────
-async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void> {
+async function evaluateRulesAndAct(
+  stats: Record<string, number>,
+): Promise<void> {
   const now = new Date();
 
   // Fetch rules with enough data to predict (ema_days > 0)
   const { data: rules, error } = await supabase
-    .from('household_inventory_rules')
-    .select('*')
-    .gt('ema_days', 0)
-    .not('last_purchased_at', 'is', null);
+    .from("household_inventory_rules")
+    .select("*")
+    .gt("ema_days", 0)
+    .not("last_purchased_at", "is", null);
 
   if (error) {
-    console.error('[evaluateRules] fetch error:', error.message);
+    console.error("[evaluateRules] fetch error:", error.message);
     stats.errors++;
     return;
   }
@@ -219,23 +258,24 @@ async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void>
   if (!rules || rules.length === 0) return;
 
   for (const rule of rules as InventoryRule[]) {
-    // Calculate the predicted next-purchase date
-    // The quantity_modifier is derived from the last purchase's quantity.
+    // Calculate the predicted next-purchase date.
+    // ema_days is always per 1 item — multiply by last qty for actual interval.
     // We fetch the most recent purchase to get the quantity.
     const { data: lastPurchase } = await supabase
-      .from('shopping_list')
-      .select('quantity')
-      .eq('household_id', rule.household_id)
-      .eq('product_id', rule.product_id)
-      .eq('status', 'purchased')
-      .order('purchased_at', { ascending: false })
+      .from("shopping_list")
+      .select("quantity")
+      .eq("household_id", rule.household_id)
+      .eq("product_id", rule.product_id)
+      .eq("status", "purchased")
+      .order("purchased_at", { ascending: false })
       .limit(1)
       .single();
 
     const quantityModifier = lastPurchase?.quantity ?? 1;
     const lastPurchasedAt = new Date(rule.last_purchased_at!);
     const nextPredictedDate = new Date(
-      lastPurchasedAt.getTime() + rule.ema_days * quantityModifier * 24 * 60 * 60 * 1000,
+      lastPurchasedAt.getTime() +
+        rule.ema_days * quantityModifier * 24 * 60 * 60 * 1000,
     );
 
     // Only act if the predicted date has passed (item is "due")
@@ -247,11 +287,11 @@ async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void>
     if (rule.confidence_score >= CONFIDENCE_AUTO_ADD) {
       // Check if the product is already active on the shopping list
       const { data: existing } = await supabase
-        .from('shopping_list')
-        .select('id')
-        .eq('household_id', rule.household_id)
-        .eq('product_id', rule.product_id)
-        .eq('status', 'active')
+        .from("shopping_list")
+        .select("id")
+        .eq("household_id", rule.household_id)
+        .eq("product_id", rule.product_id)
+        .eq("status", "active")
         .limit(1);
 
       if (existing && existing.length > 0) {
@@ -261,11 +301,11 @@ async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void>
 
       // Also skip if snoozed and snooze window hasn't expired
       const { data: snoozed } = await supabase
-        .from('shopping_list')
-        .select('id, snooze_until')
-        .eq('household_id', rule.household_id)
-        .eq('product_id', rule.product_id)
-        .eq('status', 'snoozed')
+        .from("shopping_list")
+        .select("id, snooze_until")
+        .eq("household_id", rule.household_id)
+        .eq("product_id", rule.product_id)
+        .eq("status", "snoozed")
         .limit(1);
 
       if (snoozed && snoozed.length > 0) {
@@ -276,40 +316,48 @@ async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void>
       }
 
       // Insert into shopping_list as auto-added
-      const { error: insertError } = await supabase.from('shopping_list').insert({
-        household_id: rule.household_id,
-        product_id: rule.product_id,
-        quantity: 1,
-        status: 'active',
-      });
+      const { error: insertError } = await supabase
+        .from("shopping_list")
+        .insert({
+          household_id: rule.household_id,
+          product_id: rule.product_id,
+          quantity: 1,
+          status: "active",
+        });
 
       if (insertError) {
-        console.error(`[evaluateRules] auto-add insert error:`, insertError.message);
+        console.error(
+          `[evaluateRules] auto-add insert error:`,
+          insertError.message,
+        );
         stats.errors++;
       } else {
         stats.autoAdded++;
       }
 
       // Ensure rule status reflects auto_add
-      if (rule.auto_add_status !== 'auto_add') {
+      if (rule.auto_add_status !== "auto_add") {
         await supabase
-          .from('household_inventory_rules')
-          .update({ auto_add_status: 'auto_add' })
-          .eq('id', rule.id);
+          .from("household_inventory_rules")
+          .update({ auto_add_status: "auto_add" })
+          .eq("id", rule.id);
       }
     }
     // ── Confidence 50-84 → Suggest ───────────────────────────
     else if (rule.confidence_score >= CONFIDENCE_SUGGEST) {
       // Ensure the rule is flagged as suggest_only so the client
       // picks it up in the Suggestions UI section.
-      if (rule.auto_add_status !== 'suggest_only') {
+      if (rule.auto_add_status !== "suggest_only") {
         const { error: updateError } = await supabase
-          .from('household_inventory_rules')
-          .update({ auto_add_status: 'suggest_only' })
-          .eq('id', rule.id);
+          .from("household_inventory_rules")
+          .update({ auto_add_status: "suggest_only" })
+          .eq("id", rule.id);
 
         if (updateError) {
-          console.error(`[evaluateRules] suggest update error:`, updateError.message);
+          console.error(
+            `[evaluateRules] suggest update error:`,
+            updateError.message,
+          );
           stats.errors++;
         } else {
           stats.suggested++;
@@ -326,8 +374,8 @@ async function evaluateRulesAndAct(stats: Record<string, number>): Promise<void>
 // ── Helper: derive auto_add_status from confidence score ─────
 function deriveAutoAddStatus(
   score: number,
-): 'auto_add' | 'suggest_only' | 'manual_only' {
-  if (score >= CONFIDENCE_AUTO_ADD) return 'auto_add';
-  if (score >= CONFIDENCE_SUGGEST) return 'suggest_only';
-  return 'manual_only';
+): "auto_add" | "suggest_only" | "manual_only" {
+  if (score >= CONFIDENCE_AUTO_ADD) return "auto_add";
+  if (score >= CONFIDENCE_SUGGEST) return "suggest_only";
+  return "manual_only";
 }

@@ -1,45 +1,50 @@
-import React, { useCallback, useRef, useState } from 'react';
+import { dark } from "@/constants/theme";
+import { useAuth } from "@/src/hooks/useAuth";
+import { supabase } from "@/src/lib/supabase";
+import { useShoppingListStore } from "@/src/store/shoppingListStore";
+import { detectCategory } from "@/src/utils/categoryDetector";
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import Constants from "expo-constants";
+import * as DocumentPicker from "expo-document-picker";
+import * as StoreReview from "expo-store-review";
+import { File as ExpoFile } from "expo-file-system";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Clipboard from 'expo-clipboard';
-import Constants from 'expo-constants';
-import { supabase } from '@/src/lib/supabase';
-import { useAuth } from '@/src/hooks/useAuth';
-import { dark } from '@/constants/theme';
-import { detectCategory } from '@/src/utils/categoryDetector';
-import { useShoppingListStore } from '@/src/store/shoppingListStore';
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function SettingsScreen() {
   const { user, signOut, isLoading, refreshProfile } = useAuth();
   const [editingName, setEditingName] = useState(false);
-  const [newName, setNewName] = useState('');
+  const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<{
     text: string;
-    type: 'success' | 'error';
+    type: "success" | "error";
   } | null>(null);
 
   // ── Join household ─────────────────────────────────────────
-  const [joinId, setJoinId] = useState('');
+  const [joinId, setJoinId] = useState("");
   const [joining, setJoining] = useState(false);
 
-  // ── CSV import ─────────────────────────────────────────────
+  // ── Import items ───────────────────────────────────────────
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [manualText, setManualText] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
   const { addItem, fetchList } = useShoppingListStore();
 
-  const showBanner = (text: string, type: 'success' | 'error') => {
+  const showBanner = (text: string, type: "success" | "error") => {
     setBanner({ text, type });
     setTimeout(() => setBanner(null), 3_000);
   };
@@ -50,15 +55,15 @@ export default function SettingsScreen() {
     setSaving(true);
 
     const { error } = await supabase
-      .from('users')
+      .from("users")
       .update({ display_name: newName.trim() })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     if (error) {
-      showBanner('שגיאה בעדכון השם', 'error');
+      showBanner("שגיאה בעדכון השם", "error");
     } else {
       await refreshProfile();
-      showBanner('השם עודכן בהצלחה', 'success');
+      showBanner("השם עודכן בהצלחה", "success");
       setEditingName(false);
     }
     setSaving(false);
@@ -69,9 +74,9 @@ export default function SettingsScreen() {
     if (!user?.household_id) return;
     try {
       await Clipboard.setStringAsync(user.household_id);
-      showBanner('הקוד הועתק ללוח', 'success');
+      showBanner("הקוד הועתק ללוח", "success");
     } catch {
-      showBanner('שגיאה בהעתקה', 'error');
+      showBanner("שגיאה בהעתקה", "error");
     }
   }, [user?.household_id]);
 
@@ -82,155 +87,168 @@ export default function SettingsScreen() {
 
     // Verify the household exists
     const { data: hh, error: hhErr } = await supabase
-      .from('households')
-      .select('id')
-      .eq('id', joinId.trim())
+      .from("households")
+      .select("id")
+      .eq("id", joinId.trim())
       .single();
 
     if (hhErr || !hh) {
-      showBanner('משק בית לא נמצא — בדקו את הקוד', 'error');
+      showBanner("משק בית לא נמצא — בדקו את הקוד", "error");
       setJoining(false);
       return;
     }
 
     // Update user to new household
     const { error: updateErr } = await supabase
-      .from('users')
+      .from("users")
       .update({ household_id: joinId.trim() })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     if (updateErr) {
-      showBanner('שגיאה בהצטרפות למשק הבית', 'error');
+      showBanner("שגיאה בהצטרפות למשק הבית", "error");
     } else {
-      showBanner('הצטרפת למשק הבית בהצלחה! הפעילו מחדש', 'success');
-      setJoinId('');
+      showBanner("הצטרפת למשק הבית בהצלחה! הפעילו מחדש", "success");
+      setJoinId("");
     }
     setJoining(false);
   }, [user, joinId]);
 
-  // ── CSV import handler ─────────────────────────────────────
-  const handleCsvImport = useCallback(async (csvText: string) => {
-    if (!user?.household_id) return;
-    setImporting(true);
-    setImportResult(null);
+  // ── Import handler (parses lines: "name" or "name,quantity") ──
+  const handleImport = useCallback(
+    async (text: string) => {
+      if (!user?.household_id) return;
+      setImporting(true);
+      setImportResult(null);
 
-    try {
-      // Parse CSV: support "name,quantity" or just "name" per line
-      const lines = csvText
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
+      try {
+        const lines = text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0);
 
-      // Skip header row if it looks like one
-      const firstLine = lines[0]?.toLowerCase() ?? '';
-      const startIdx =
-        firstLine.includes('name') || firstLine.includes('שם') || firstLine.includes('product')
-          ? 1
-          : 0;
+        const firstLine = lines[0]?.toLowerCase() ?? "";
+        const startIdx =
+          firstLine.includes("name") ||
+          firstLine.includes("שם") ||
+          firstLine.includes("product")
+            ? 1
+            : 0;
 
-      let added = 0;
-      let skipped = 0;
+        let added = 0;
+        let skipped = 0;
 
-      for (let i = startIdx; i < lines.length; i++) {
-        const parts = lines[i]!.split(',').map((p) => p.trim().replace(/^"|"$/g, ''));
-        const name = parts[0];
-        if (!name || name.length < 1) continue;
+        for (let i = startIdx; i < lines.length; i++) {
+          const parts = lines[i]!.split(",").map((p) =>
+            p.trim().replace(/^"|"$/g, ""),
+          );
+          const name = parts[0];
+          if (!name || name.length < 1) continue;
 
-        const quantity = parts[1] ? parseInt(parts[1], 10) || 1 : 1;
-        const category = detectCategory(name);
+          const quantity = parts[1] ? parseInt(parts[1], 10) || 1 : 1;
+          const category = detectCategory(name);
 
-        // Upsert product
-        const { data: existingProduct } = await supabase
-          .from('products')
-          .select('id')
-          .eq('name', name)
-          .maybeSingle();
+          const { data: existingProduct } = await supabase
+            .from("products")
+            .select("id")
+            .eq("name", name)
+            .maybeSingle();
 
-        let productId: string;
-        if (existingProduct) {
-          productId = existingProduct.id;
-        } else {
-          const { data: newProduct, error: prodErr } = await supabase
-            .from('products')
-            .insert({ name, category })
-            .select('id')
-            .single();
+          let productId: string;
+          if (existingProduct) {
+            productId = existingProduct.id;
+          } else {
+            const { data: newProduct, error: prodErr } = await supabase
+              .from("products")
+              .insert({ name, category })
+              .select("id")
+              .single();
 
-          if (prodErr || !newProduct) {
+            if (prodErr || !newProduct) {
+              skipped++;
+              continue;
+            }
+            productId = newProduct.id;
+          }
+
+          const result = addItem(productId, user.household_id, quantity);
+          if (result === "added") {
+            added++;
+          } else {
             skipped++;
-            continue;
           }
-          productId = newProduct.id;
         }
 
-        // Add to shopping list
-        const result = addItem(productId, user.household_id, quantity);
-        if (result === 'added') {
-          added++;
-        } else {
-          skipped++;
-        }
+        await fetchList(user.household_id);
+
+        const msg =
+          `\u2705 יובאו ${added} פריטים` +
+          (skipped > 0 ? ` (דולגו ${skipped})` : "");
+        setImportResult(msg);
+        showBanner(msg, "success");
+      } catch (err) {
+        console.error("[import]", err);
+        showBanner("שגיאה בייבוא", "error");
+      } finally {
+        setImporting(false);
       }
+    },
+    [user, addItem, fetchList],
+  );
 
-      // Refresh list to get real IDs
-      await fetchList(user.household_id);
-
-      const msg = `\u2705 יובאו ${added} פריטים` + (skipped > 0 ? ` (דולגו ${skipped})` : '');
-      setImportResult(msg);
-      showBanner(msg, 'success');
-    } catch (err) {
-      console.error('[csv-import]', err);
-      showBanner('שגיאה בייבוא הקובץ', 'error');
-    } finally {
-      setImporting(false);
-    }
-  }, [user, addItem, fetchList]);
-
-  const handleFileSelect = useCallback(() => {
-    if (Platform.OS === 'web') {
-      // Create a hidden file input for web
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.csv,text/csv';
-      input.onchange = (e: any) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = ev.target?.result;
-          if (typeof text === 'string') {
-            handleCsvImport(text);
-          }
-        };
-        reader.readAsText(file);
-      };
-      input.click();
-    } else {
-      // Mobile: prompt to paste CSV text
-      Alert.alert(
-        'ייבוא מ-CSV',
-        'העתיקו את תוכן ה-CSV ללוח (שם מוצר בכל שורה) ולחצו "ייבא מלוח"',
-        [
-          { text: 'ביטול', style: 'cancel' },
-          {
-            text: 'ייבא מלוח',
-            onPress: async () => {
-              try {
-                const text = await Clipboard.getStringAsync();
-                if (text && text.trim().length > 0) {
-                  handleCsvImport(text);
-                } else {
-                  showBanner('הלוח ריק', 'error');
-                }
-              } catch {
-                showBanner('שגיאה בקריאת הלוח', 'error');
-              }
-            },
-          },
+  // ── Pick file (CSV / TXT) ──────────────────────────────────
+  const handlePickFile = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "text/csv",
+          "text/plain",
+          "text/comma-separated-values",
+          "application/csv",
         ],
-      );
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const file = new ExpoFile(asset.uri);
+      const content = await file.text();
+
+      if (content && content.trim().length > 0) {
+        handleImport(content);
+      } else {
+        showBanner("הקובץ ריק", "error");
+      }
+    } catch (err) {
+      console.error("[file-pick]", err);
+      showBanner("שגיאה בבחירת הקובץ", "error");
     }
-  }, [handleCsvImport]);
+  }, [handleImport]);
+
+  // ── Paste from clipboard ───────────────────────────────────
+  const handlePasteClipboard = useCallback(async () => {
+    try {
+      const text = await Clipboard.getStringAsync();
+      if (text && text.trim().length > 0) {
+        handleImport(text);
+      } else {
+        showBanner("הלוח ריק — העתיקו רשימה קודם", "error");
+      }
+    } catch {
+      showBanner("שגיאה בקריאת הלוח", "error");
+    }
+  }, [handleImport]);
+
+  // ── Import from manual text input ──────────────────────────
+  const handleManualImport = useCallback(() => {
+    if (!manualText.trim()) {
+      showBanner("הזינו לפחות מוצר אחד", "error");
+      return;
+    }
+    handleImport(manualText);
+    setManualText("");
+    setShowManualInput(false);
+  }, [manualText, handleImport]);
 
   if (isLoading || !user) {
     return (
@@ -243,14 +261,16 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Banner */}
         {banner && (
           <View
             style={[
               styles.banner,
-              banner.type === 'success' ? styles.bannerSuccess : styles.bannerError,
+              banner.type === "success"
+                ? styles.bannerSuccess
+                : styles.bannerError,
             ]}
           >
             <Text style={styles.bannerText}>{banner.text}</Text>
@@ -270,7 +290,7 @@ export default function SettingsScreen() {
                   style={styles.nameInput}
                   value={newName}
                   onChangeText={setNewName}
-                  placeholder={user.display_name ?? ''}
+                  placeholder={user.display_name ?? ""}
                   autoFocus
                 />
                 <TouchableOpacity
@@ -279,7 +299,7 @@ export default function SettingsScreen() {
                   disabled={saving}
                 >
                   <Text style={styles.saveBtnText}>
-                    {saving ? '...' : 'שמור'}
+                    {saving ? "..." : "שמור"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -292,12 +312,12 @@ export default function SettingsScreen() {
             ) : (
               <TouchableOpacity
                 onPress={() => {
-                  setNewName(user.display_name ?? '');
+                  setNewName(user.display_name ?? "");
                   setEditingName(true);
                 }}
               >
                 <Text style={styles.value}>
-                  {user.display_name || '—'}{' '}
+                  {user.display_name || "—"}{" "}
                   <Text style={styles.editIcon}>✏️</Text>
                 </Text>
               </TouchableOpacity>
@@ -320,7 +340,7 @@ export default function SettingsScreen() {
             <Text style={styles.label}>קוד משק בית</Text>
             <TouchableOpacity onPress={handleCopyHousehold}>
               <Text style={styles.householdId}>
-                {user.household_id?.slice(0, 8)}…{' '}
+                {user.household_id?.slice(0, 8)}…{" "}
                 <Text style={styles.copyIcon}>📋</Text>
               </Text>
             </TouchableOpacity>
@@ -343,42 +363,128 @@ export default function SettingsScreen() {
                 autoCorrect={false}
               />
               <TouchableOpacity
-                style={[styles.joinBtn, !joinId.trim() && styles.joinBtnDisabled]}
+                style={[
+                  styles.joinBtn,
+                  !joinId.trim() && styles.joinBtnDisabled,
+                ]}
                 onPress={handleJoinHousehold}
                 disabled={joining || !joinId.trim()}
               >
                 <Text style={styles.joinBtnText}>
-                  {joining ? '...' : 'הצטרף'}
+                  {joining ? "..." : "הצטרף"}
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        {/* ── CSV Import Section ──────────────────────────────── */}
+        {/* ── Import Items Section ─────────────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ייבוא פריטים</Text>
           <Text style={styles.hint}>
-            ייבאו רשימת קניות מקובץ CSV.{'\n'}
+            הוסיפו מוצרים לרשימה מקובץ, מהלוח, או הקלידו ידנית.{"\n"}
             פורמט: שם מוצר בכל שורה, או שם,כמות
           </Text>
 
           <View style={styles.csvExample}>
             <Text style={styles.csvExampleTitle}>דוגמה:</Text>
             <Text style={styles.csvExampleText}>
-              חלב{'\n'}ביצים,2{'\n'}לחם{'\n'}גבינה צהובה,1
+              חלב{"\n"}ביצים,2{"\n"}לחם{"\n"}גבינה צהובה,1
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.importBtn, importing && styles.importBtnDisabled]}
-            onPress={handleFileSelect}
-            disabled={importing}
-          >
-            <Text style={styles.importBtnText}>
-              {importing ? 'מייבא...' : '📥 ייבוא מ-CSV'}
-            </Text>
-          </TouchableOpacity>
+          {/* Import option buttons */}
+          <View style={styles.importOptions}>
+            {/* Pick file */}
+            <TouchableOpacity
+              style={[
+                styles.importOptionBtn,
+                importing && styles.importBtnDisabled,
+              ]}
+              onPress={handlePickFile}
+              disabled={importing}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="document-text-outline"
+                size={22}
+                color={dark.accent}
+              />
+              <Text style={styles.importOptionText}>טען מקובץ</Text>
+              <Text style={styles.importOptionSub}>CSV, TXT</Text>
+            </TouchableOpacity>
+
+            {/* Paste from clipboard */}
+            <TouchableOpacity
+              style={[
+                styles.importOptionBtn,
+                importing && styles.importBtnDisabled,
+              ]}
+              onPress={handlePasteClipboard}
+              disabled={importing}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="clipboard-outline"
+                size={22}
+                color={dark.secondary}
+              />
+              <Text style={styles.importOptionText}>הדבק מהלוח</Text>
+              <Text style={styles.importOptionSub}>העתיקו רשימה קודם</Text>
+            </TouchableOpacity>
+
+            {/* Manual text input toggle */}
+            <TouchableOpacity
+              style={[
+                styles.importOptionBtn,
+                importing && styles.importBtnDisabled,
+              ]}
+              onPress={() => setShowManualInput((v) => !v)}
+              disabled={importing}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="create-outline" size={22} color={dark.warning} />
+              <Text style={styles.importOptionText}>הקלדה ידנית</Text>
+              <Text style={styles.importOptionSub}>הזינו מוצרים בעצמכם</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Manual text area (shown on toggle) */}
+          {showManualInput && (
+            <View style={styles.manualInputArea}>
+              <TextInput
+                style={styles.manualTextInput}
+                value={manualText}
+                onChangeText={setManualText}
+                placeholder={"חלב\nביצים,2\nלחם"}
+                placeholderTextColor={dark.placeholder}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+              />
+              <TouchableOpacity
+                style={[
+                  styles.importBtn,
+                  (!manualText.trim() || importing) && styles.importBtnDisabled,
+                ]}
+                onPress={handleManualImport}
+                disabled={!manualText.trim() || importing}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.importBtnText}>
+                  {importing ? "מייבא..." : "📥 ייבא פריטים"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Loading indicator */}
+          {importing && (
+            <View style={styles.importingRow}>
+              <ActivityIndicator size="small" color={dark.accent} />
+              <Text style={styles.importingText}>מייבא פריטים...</Text>
+            </View>
+          )}
 
           {importResult && (
             <Text style={styles.importResult}>{importResult}</Text>
@@ -390,7 +496,9 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>אודות</Text>
           <View style={styles.row}>
             <Text style={styles.label}>גרסה</Text>
-            <Text style={styles.value}>{Constants.expoConfig?.version ?? '1.0.0'}</Text>
+            <Text style={styles.value}>
+              {Constants.expoConfig?.version ?? "1.0.0"}
+            </Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>יוצר</Text>
@@ -398,9 +506,43 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>עיצוב ופיתוח</Text>
-            <Text style={[styles.value, { color: dark.accent }]}>@OmerElezra</Text>
+            <Text style={[styles.value, { color: dark.accent }]}>
+              @OmerElezra
+            </Text>
           </View>
         </View>
+
+        {/* ── Rate App (native in-app review) ────────────────── */}
+        <TouchableOpacity
+          style={styles.rateBtn}
+          onPress={async () => {
+            try {
+              const isAvailable = await StoreReview.isAvailableAsync();
+              if (isAvailable) {
+                await StoreReview.requestReview();
+              } else {
+                // Fallback: open store page directly
+                const url =
+                  Platform.OS === "android"
+                    ? "market://details?id=com.omerelezra.agala"
+                    : "https://play.google.com/store/apps/details?id=com.omerelezra.agala";
+                await Linking.openURL(url).catch(() =>
+                  Linking.openURL(
+                    "https://play.google.com/store/apps/details?id=com.omerelezra.agala",
+                  ),
+                );
+              }
+            } catch {
+              // Last resort fallback
+              Linking.openURL(
+                "https://play.google.com/store/apps/details?id=com.omerelezra.agala",
+              );
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.rateBtnText}>⭐ דרגו אותנו ב-Google Play</Text>
+        </TouchableOpacity>
 
         {/* ── Sign Out ────────────────────────────────────────── */}
         <TouchableOpacity style={styles.signOutBtn} onPress={signOut}>
@@ -419,8 +561,8 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   scroll: {
     padding: 16,
@@ -442,9 +584,9 @@ const styles = StyleSheet.create({
     borderColor: dark.error,
   },
   bannerText: {
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.text,
   },
   section: {
@@ -457,10 +599,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.accent,
     marginBottom: 14,
     letterSpacing: 0.3,
+    textAlign: "right",
   },
   row: {
     paddingVertical: 12,
@@ -471,19 +614,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: dark.textSecondary,
     marginBottom: 4,
-    fontWeight: '600',
+    fontWeight: "600",
+    textAlign: "right",
   },
   value: {
     fontSize: 16,
     color: dark.text,
-    fontWeight: '500',
+    fontWeight: "500",
+    textAlign: "right",
   },
   editIcon: {
     fontSize: 14,
   },
   editRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row-reverse",
+    alignItems: "center",
     gap: 8,
     marginTop: 4,
   },
@@ -496,6 +641,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: dark.input,
     color: dark.inputText,
+    textAlign: "right",
   },
   saveBtn: {
     paddingVertical: 10,
@@ -504,8 +650,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   saveBtnText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 14,
   },
   cancelBtn: {
@@ -519,7 +665,8 @@ const styles = StyleSheet.create({
   householdId: {
     fontSize: 16,
     color: dark.secondary,
-    fontWeight: '700',
+    fontWeight: "700",
+    textAlign: "right",
   },
   copyIcon: {
     fontSize: 14,
@@ -529,6 +676,7 @@ const styles = StyleSheet.create({
     color: dark.textSecondary,
     marginTop: 8,
     lineHeight: 20,
+    textAlign: "right",
   },
   joinSection: {
     marginTop: 16,
@@ -537,8 +685,8 @@ const styles = StyleSheet.create({
     borderTopColor: dark.border,
   },
   joinRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row-reverse",
+    alignItems: "center",
     gap: 8,
     marginTop: 8,
   },
@@ -551,6 +699,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: dark.input,
     color: dark.inputText,
+    textAlign: "right",
   },
   joinBtn: {
     paddingVertical: 12,
@@ -562,22 +711,34 @@ const styles = StyleSheet.create({
     backgroundColor: dark.surfaceAlt,
   },
   joinBtnText: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 14,
+  },
+  rateBtn: {
+    backgroundColor: dark.accent,
+    borderRadius: 18,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  rateBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
   signOutBtn: {
     backgroundColor: dark.surface,
     borderRadius: 18,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
     borderWidth: 1.5,
     borderColor: dark.error,
   },
   signOutText: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.error,
   },
   csvExample: {
@@ -589,35 +750,91 @@ const styles = StyleSheet.create({
   },
   csvExampleTitle: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.textSecondary,
     marginBottom: 4,
+    textAlign: "right",
   },
   csvExampleText: {
     fontSize: 13,
     color: dark.textMuted,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 20,
+    textAlign: "right",
+  },
+  importOptions: {
+    gap: 10,
+    marginBottom: 4,
+  },
+  importOptionBtn: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: dark.background,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: dark.border,
+  },
+  importOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: dark.text,
+    textAlign: "right",
+  },
+  importOptionSub: {
+    fontSize: 11,
+    color: dark.textSecondary,
+    fontWeight: "500",
+  },
+  manualInputArea: {
+    marginTop: 10,
+    gap: 10,
+  },
+  manualTextInput: {
+    fontSize: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: dark.inputBorder,
+    borderRadius: 14,
+    backgroundColor: dark.input,
+    color: dark.inputText,
+    textAlign: "right",
+    writingDirection: "rtl",
+    minHeight: 120,
+  },
+  importingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  importingText: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    fontWeight: "600",
   },
   importBtn: {
     backgroundColor: dark.accent,
     borderRadius: 14,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
   },
   importBtnDisabled: {
     backgroundColor: dark.surfaceAlt,
   },
   importBtnText: {
     fontSize: 15,
-    fontWeight: '800',
-    color: '#fff',
+    fontWeight: "800",
+    color: "#fff",
   },
   importResult: {
     fontSize: 14,
     color: dark.success,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 10,
-    fontWeight: '700',
+    fontWeight: "700",
   },
 });

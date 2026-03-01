@@ -136,12 +136,14 @@ export default function ItemDetailScreen() {
 
       // Auto-create rule if none exists
       if (!hasRule && sl.product_id) {
-        const dates = purchaseHistory
-          .map((h) =>
-            h.purchased_at ? new Date(h.purchased_at).getTime() : null,
-          )
-          .filter((t): t is number => t !== null)
-          .sort((a, b) => a - b);
+        // ema_days is always per 1 item — normalise intervals by qty
+        const sorted = purchaseHistory
+          .filter((h) => h.purchased_at)
+          .map((h) => ({
+            ts: new Date(h.purchased_at!).getTime(),
+            qty: h.quantity || 1,
+          }))
+          .sort((a, b) => a.ts - b.ts);
 
         // Smart default: use category-based typical buy cycle
         const detectedCategory = sl.product?.category ?? null;
@@ -149,10 +151,12 @@ export default function ItemDetailScreen() {
         let confidence = 0;
         let status: "suggest_only" | "manual_only" = "suggest_only";
 
-        if (dates.length >= 2) {
+        if (sorted.length >= 2) {
           const intervals: number[] = [];
-          for (let i = 1; i < dates.length; i++) {
-            intervals.push((dates[i]! - dates[i - 1]!) / (1000 * 60 * 60 * 24));
+          for (let i = 1; i < sorted.length; i++) {
+            const rawDays =
+              (sorted[i]!.ts - sorted[i - 1]!.ts) / (1000 * 60 * 60 * 24);
+            intervals.push(rawDays / sorted[i - 1]!.qty); // per 1 item
           }
           const alpha = 0.3;
           let ema = intervals[0]!;
@@ -192,21 +196,35 @@ export default function ItemDetailScreen() {
       .sort((a, b) => a - b);
   }, [history]);
 
+  // ema_days is always per 1 item.
+  // Each raw interval is divided by the quantity bought at the start
+  // of that interval so the cycle represents a single-unit consumption rate.
   const historyEmaDays = useMemo(() => {
-    if (purchaseDates.length < 2) return null;
+    const sorted = history
+      .filter((h) => h.purchased_at)
+      .map((h) => ({
+        ts: new Date(h.purchased_at!).getTime(),
+        qty: h.quantity || 1,
+      }))
+      .sort((a, b) => a.ts - b.ts);
+
+    if (sorted.length < 2) return null;
+
+    // Per-item intervals: raw_days / qty bought (consumed during interval)
     const intervals: number[] = [];
-    for (let i = 1; i < purchaseDates.length; i++) {
-      intervals.push(
-        (purchaseDates[i]! - purchaseDates[i - 1]!) / (1000 * 60 * 60 * 24),
-      );
+    for (let i = 1; i < sorted.length; i++) {
+      const rawDays =
+        (sorted[i]!.ts - sorted[i - 1]!.ts) / (1000 * 60 * 60 * 24);
+      intervals.push(rawDays / sorted[i - 1]!.qty);
     }
+
     const alpha = 0.3;
     let ema = intervals[0]!;
     for (let i = 1; i < intervals.length; i++) {
       ema = alpha * intervals[i]! + (1 - alpha) * ema;
     }
     return Math.max(1, ema);
-  }, [purchaseDates]);
+  }, [history]);
 
   const lastPurchaseMs = useMemo(() => {
     if (purchaseDates.length > 0)
@@ -216,6 +234,8 @@ export default function ItemDetailScreen() {
     return null;
   }, [purchaseDates, rule?.last_purchased_at]);
 
+  // effectiveCycleDays = base EMA cycle per 1 item (single unit).
+  // Multiply by lastPurchaseQuantity for the actual expected interval.
   const effectiveCycleDays = useMemo(() => {
     if (rule?.auto_add_status === "manual_only") {
       return rule?.ema_days && rule.ema_days > 0 ? rule.ema_days : null;
@@ -226,13 +246,23 @@ export default function ItemDetailScreen() {
     return null;
   }, [rule?.auto_add_status, rule?.ema_days, historyEmaDays]);
 
+  // ── Last purchase quantity (for quantity × cycle modifier) ──
+  const lastPurchaseQuantity = useMemo(() => {
+    if (history.length === 0) return 1;
+    // history is sorted desc (most recent first)
+    return history[0]?.quantity ?? 1;
+  }, [history]);
+
   // ── Next buy prediction ────────────────────────────────────
+  // NextDate = lastPurchase + (ema_days × quantity)
+  // Buying 3 units means they last 3× longer before next purchase.
   const nextBuyDate = useMemo(() => {
     if (!lastPurchaseMs || !effectiveCycleDays) return null;
+    const adjustedDays = effectiveCycleDays * lastPurchaseQuantity;
     const next = new Date(lastPurchaseMs);
-    next.setDate(next.getDate() + Math.round(effectiveCycleDays));
+    next.setDate(next.getDate() + Math.round(adjustedDays));
     return next;
-  }, [lastPurchaseMs, effectiveCycleDays]);
+  }, [lastPurchaseMs, effectiveCycleDays, lastPurchaseQuantity]);
 
   const nextBuyLabel = useMemo(() => {
     if (!nextBuyDate) return "אין מספיק נתונים";
@@ -246,13 +276,14 @@ export default function ItemDetailScreen() {
     return `בעוד ${diffDays} ימים`;
   }, [nextBuyDate]);
 
-  // ── Progress bar ratio (elapsed / frequency, clamped 0–100%) ──
+  // ── Progress bar ratio (elapsed / adjusted frequency, clamped 0–100%) ──
   const progressRatio = useMemo(() => {
     if (!lastPurchaseMs || !effectiveCycleDays || effectiveCycleDays <= 0)
       return null;
+    const adjustedDays = effectiveCycleDays * lastPurchaseQuantity;
     const elapsedDays = (Date.now() - lastPurchaseMs) / (1000 * 60 * 60 * 24);
-    return Math.min(1, Math.max(0, elapsedDays / effectiveCycleDays));
-  }, [lastPurchaseMs, effectiveCycleDays]);
+    return Math.min(1, Math.max(0, elapsedDays / adjustedDays));
+  }, [lastPurchaseMs, effectiveCycleDays, lastPurchaseQuantity]);
 
   const progressColor = useMemo(() => {
     if (progressRatio === null) return dark.accent;
@@ -370,27 +401,32 @@ export default function ItemDetailScreen() {
         mode === "manual" ? "manual_only" : "suggest_only";
 
       if (mode === "ai" && history.length >= 2) {
-        // Compute EMA from purchase history
-        const dates = history
-          .map((h) =>
-            h.purchased_at ? new Date(h.purchased_at).getTime() : null,
-          )
-          .filter((t): t is number => t !== null)
-          .sort((a, b) => a - b);
+        // Per-item EMA: normalise each interval by quantity bought
+        const sorted = history
+          .filter((h) => h.purchased_at)
+          .map((h) => ({
+            ts: new Date(h.purchased_at!).getTime(),
+            qty: h.quantity || 1,
+          }))
+          .sort((a, b) => a.ts - b.ts);
 
-        const intervals: number[] = [];
-        for (let i = 1; i < dates.length; i++) {
-          intervals.push((dates[i]! - dates[i - 1]!) / (1000 * 60 * 60 * 24));
+        if (sorted.length >= 2) {
+          const intervals: number[] = [];
+          for (let i = 1; i < sorted.length; i++) {
+            const rawDays =
+              (sorted[i]!.ts - sorted[i - 1]!.ts) / (1000 * 60 * 60 * 24);
+            intervals.push(rawDays / sorted[i - 1]!.qty); // per 1 item
+          }
+
+          const alpha = 0.3;
+          let ema = intervals[0]!;
+          for (let i = 1; i < intervals.length; i++) {
+            ema = alpha * intervals[i]! + (1 - alpha) * ema;
+          }
+
+          emaDays = Math.max(1, Math.round(ema * 10) / 10);
+          confidence = Math.min(100, Math.round(50 + intervals.length * 10));
         }
-
-        const alpha = 0.3;
-        let ema = intervals[0]!;
-        for (let i = 1; i < intervals.length; i++) {
-          ema = alpha * intervals[i]! + (1 - alpha) * ema;
-        }
-
-        emaDays = Math.max(1, Math.round(ema * 10) / 10);
-        confidence = Math.min(100, Math.round(50 + intervals.length * 10));
         status = "suggest_only";
       }
 
@@ -413,7 +449,7 @@ export default function ItemDetailScreen() {
         setEditEmaDays(data.ema_days);
         showBanner(
           mode === "ai"
-            ? `🤖 AI חישב מחזור: ${emaDays} ימים ✓`
+            ? `🤖 AI חישב מחזור: ${emaDays} ימים (ליחידה) ✓`
             : "מחזור הקנייה נוצר בהצלחה ✓",
           "success",
         );
@@ -469,20 +505,25 @@ export default function ItemDetailScreen() {
     if (!rule) return;
     setResettingAI(true);
 
-    // Try to recalculate from history if possible
-    const dates = history
-      .map((h) => (h.purchased_at ? new Date(h.purchased_at).getTime() : null))
-      .filter((t): t is number => t !== null)
-      .sort((a, b) => a - b);
+    // ema_days is always per 1 item — normalise intervals by qty
+    const sorted = history
+      .filter((h) => h.purchased_at)
+      .map((h) => ({
+        ts: new Date(h.purchased_at!).getTime(),
+        qty: h.quantity || 1,
+      }))
+      .sort((a, b) => a.ts - b.ts);
 
     let newEmaDays = rule.ema_days; // fallback: keep current value
     let confidence = rule.confidence_score;
     let infoMsg = "";
 
-    if (dates.length >= 2) {
+    if (sorted.length >= 2) {
       const intervals: number[] = [];
-      for (let i = 1; i < dates.length; i++) {
-        intervals.push((dates[i]! - dates[i - 1]!) / (1000 * 60 * 60 * 24));
+      for (let i = 1; i < sorted.length; i++) {
+        const rawDays =
+          (sorted[i]!.ts - sorted[i - 1]!.ts) / (1000 * 60 * 60 * 24);
+        intervals.push(rawDays / sorted[i - 1]!.qty); // per 1 item
       }
       const alpha = 0.3;
       let ema = intervals[0]!;
@@ -491,7 +532,7 @@ export default function ItemDetailScreen() {
       }
       newEmaDays = Math.max(1, Math.round(ema * 10) / 10);
       confidence = Math.min(100, Math.round(50 + intervals.length * 10));
-      infoMsg = `🤖 AI חישב: כל ${newEmaDays} ימים ✓`;
+      infoMsg = `🤖 AI חישב: כל ${newEmaDays} ימים (ליחידה) ✓`;
     } else {
       // Not enough data — keep ema_days, just switch mode
       confidence = Math.max(10, confidence);
@@ -524,19 +565,24 @@ export default function ItemDetailScreen() {
   }, [rule, history]);
 
   // ── Computed buy-cycle stats from history ───────────────────
+  // All interval-based stats are normalised per 1 item.
   const buyCycleStats = useMemo(() => {
     if (history.length === 0) return null;
 
-    const dates = history
-      .map((h) => (h.purchased_at ? new Date(h.purchased_at).getTime() : null))
-      .filter((t): t is number => t !== null)
-      .sort((a, b) => a - b);
+    // Sorted ascending with quantity for per-item normalisation
+    const sorted = history
+      .filter((h) => h.purchased_at)
+      .map((h) => ({
+        ts: new Date(h.purchased_at!).getTime(),
+        qty: h.quantity || 1,
+      }))
+      .sort((a, b) => a.ts - b.ts);
 
     const totalQty = history.reduce((s, h) => s + h.quantity, 0);
 
     // Last purchase date (most recent)
     const lastPurchaseDate =
-      dates.length > 0 ? new Date(dates[dates.length - 1]!) : null;
+      sorted.length > 0 ? new Date(sorted[sorted.length - 1]!.ts) : null;
 
     // Days since last purchase
     const daysSinceLast = lastPurchaseDate
@@ -546,7 +592,7 @@ export default function ItemDetailScreen() {
       : null;
 
     // If fewer than 2 purchases, return basic stats only
-    if (dates.length < 2) {
+    if (sorted.length < 2) {
       return {
         purchaseCount: history.length,
         totalQty,
@@ -558,26 +604,29 @@ export default function ItemDetailScreen() {
       };
     }
 
+    // Per-item intervals: raw_days / qty bought at start of each interval
     const intervals: number[] = [];
-    for (let i = 1; i < dates.length; i++) {
-      intervals.push((dates[i]! - dates[i - 1]!) / (1000 * 60 * 60 * 24));
+    for (let i = 1; i < sorted.length; i++) {
+      const rawDays =
+        (sorted[i]!.ts - sorted[i - 1]!.ts) / (1000 * 60 * 60 * 24);
+      intervals.push(rawDays / sorted[i - 1]!.qty); // per 1 item
     }
 
     const avg = intervals.reduce((s, v) => s + v, 0) / intervals.length;
 
-    // Monthly purchase rate
+    // Monthly purchase rate (transactions, not items)
     const spanDays =
-      (dates[dates.length - 1]! - dates[0]!) / (1000 * 60 * 60 * 24);
+      (sorted[sorted.length - 1]!.ts - sorted[0]!.ts) / (1000 * 60 * 60 * 24);
     const monthlyRate =
       spanDays > 0
         ? Math.round((history.length / spanDays) * 30 * 10) / 10
         : null;
 
-    // Consistency: standard deviation of intervals vs average
+    // Consistency: coefficient of variation of per-item intervals
     const variance =
       intervals.reduce((s, v) => s + (v - avg) ** 2, 0) / intervals.length;
     const stdDev = Math.sqrt(variance);
-    const cv = avg > 0 ? stdDev / avg : 0; // coefficient of variation
+    const cv = avg > 0 ? stdDev / avg : 0;
     let consistency: string;
     if (cv < 0.2) consistency = "קבוע מאוד";
     else if (cv < 0.4) consistency = "יציב";
@@ -884,8 +933,8 @@ export default function ItemDetailScreen() {
                       </Text>
                       <Text style={styles.innerRowSub}>
                         {buyCycleStats
-                          ? `מבוסס על ${buyCycleStats.purchaseCount} רכישות אחרונות`
-                          : "ברירת מחדל לפי קטגוריה — ילמד מהרכישות הבאות"}
+                          ? `ליחידה · מבוסס על ${buyCycleStats.purchaseCount} רכישות (${buyCycleStats.totalQty} יח')${lastPurchaseQuantity > 1 ? ` · ×${lastPurchaseQuantity} כמות` : ""}`
+                          : "ליחידה · ברירת מחדל לפי קטגוריה — ילמד מהרכישות הבאות"}
                       </Text>
                     </View>
                   </View>
@@ -970,9 +1019,9 @@ export default function ItemDetailScreen() {
                           <View style={styles.miniStatDivider} />
                           <View style={styles.miniStat}>
                             <Text style={styles.miniStatNum}>
-                              {buyCycleStats.purchaseCount}
+                              {buyCycleStats.totalQty}
                             </Text>
-                            <Text style={styles.miniStatLabel}>רכישות</Text>
+                            <Text style={styles.miniStatLabel}>יח' נקנו</Text>
                           </View>
                           <View style={styles.miniStatDivider} />
                           <View style={styles.miniStat}>
@@ -1028,6 +1077,7 @@ export default function ItemDetailScreen() {
                       />
                     </TouchableOpacity>
                     <View style={styles.innerRowText}>
+                      {/* מחזור ידני — per 1 item; multiply by qty for actual interval */}
                       <Text style={styles.innerRowLabel}>מחזור ידני</Text>
                       {!showManualEdit ? (
                         <Text style={styles.innerRowValue}>
@@ -1071,8 +1121,10 @@ export default function ItemDetailScreen() {
                       )}
                       <Text style={styles.innerRowSub}>
                         {showManualEdit
-                          ? "לחץ על ✓ לשמירה"
-                          : "לחץ על העט לעריכה"}
+                          ? "ליחידה · לחץ על ✓ לשמירה"
+                          : lastPurchaseQuantity > 1
+                            ? `ליחידה · קנייה אחרונה ×${lastPurchaseQuantity} → ${Math.round(rule.ema_days * lastPurchaseQuantity)} ימים`
+                            : "ליחידה · לחץ על העט לעריכה"}
                       </Text>
                     </View>
                   </View>
@@ -1156,9 +1208,9 @@ export default function ItemDetailScreen() {
                           <View style={styles.miniStatDivider} />
                           <View style={styles.miniStat}>
                             <Text style={styles.miniStatNum}>
-                              {buyCycleStats.purchaseCount}
+                              {buyCycleStats.totalQty}
                             </Text>
-                            <Text style={styles.miniStatLabel}>רכישות</Text>
+                            <Text style={styles.miniStatLabel}>יח' נקנו</Text>
                           </View>
                           <View style={styles.miniStatDivider} />
                           <View style={styles.miniStat}>
@@ -1412,7 +1464,7 @@ const styles = StyleSheet.create({
 
   // ── Manual edit inline ────────────────────────────────────
   manualEditInline: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     gap: 6,
     marginTop: 2,
@@ -1561,12 +1613,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: dark.accent,
+    textAlign: "right",
   },
   miniStatLabel: {
     fontSize: 10,
     color: dark.textMuted,
     marginTop: 1,
     fontWeight: "500",
+    textAlign: "right",
   },
   miniStatDivider: {
     width: 1,
