@@ -136,6 +136,7 @@ jobs:
         run: eas build --platform android --profile production --non-interactive
 
       - name: Submit to Google Play (internal track)
+        continue-on-error: true
         env:
           EAS_NO_VCS: "1"
         run: eas submit --platform android --profile production --latest --non-interactive
