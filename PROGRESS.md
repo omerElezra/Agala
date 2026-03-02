@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-03-01
+> Last updated: 2026-03-02
 
 ---
 
@@ -271,13 +271,13 @@
 
 ### 14. Google Play Store Release
 
-- [ ] **Create Google Play Console account** — one-time $25 registration at [play.google.com/console](https://play.google.com/console)
-- [ ] **Create the app** in Play Console → "Create app" → set app name "עגלה", default language Hebrew, app type "App", free
+- [x] **Create Google Play Console account** — one-time $25 registration at [play.google.com/console](https://play.google.com/console) ✅
+- [x] **Create the app** in Play Console → "Create app" → set app name "עגלה", default language Hebrew, app type "App", free ✅
 - [ ] **Privacy policy** — publish a publicly accessible privacy policy page (covers Supabase Auth email collection) and add the URL in Play Console
 - [ ] **Store listing** — fill in:
   - Short description (80 chars max, Hebrew)
   - Full description (4000 chars max, Hebrew)
-  - App icon (512×512 PNG)
+  - App icon (512×512 PNG) ✅ Added `assets/store_listing/store-icon-512.png`
   - Feature graphic (1024×500 PNG)
   - Phone screenshots (min 2, recommended 4–8)
   - Tablet screenshots (if `supportsTablet: true`)
@@ -297,6 +297,13 @@
 - [ ] **Staged rollout** — start at 10% → 50% → 100% once crash-free rate is confirmed
 - [ ] **Monitor post-launch** — check Play Console for ANR rate, crash rate, user reviews
 
+### 14b. Google Play Auto-Submit Setup (2026-03-02)
+
+- [x] **EAS Submit config** — Added `submit.production.android` to `eas.json` with `serviceAccountKeyPath` and `track: internal`
+- [x] **CI/CD auto-submit step** — Added `eas submit --platform android --profile production --latest` step to GitHub Actions workflow (runs after successful EAS build)
+- [x] **Store icon asset** — Created `assets/store_listing/store-icon-512.png` (512×512 PNG) for Play Console listing
+- [ ] **Google Service Account key** — Pending: create service account in Google Cloud Console, grant Play Console API access, download JSON key, add as `google-service-account-key.json` (or EAS secret)
+
 ### 15. App Store Release (iOS) — Future
 
 - [ ] Apple Developer Program enrollment ($99/year)
@@ -312,12 +319,13 @@
 
 ## Architecture Reference
 
-| Layer       | Technology                              |
-| ----------- | --------------------------------------- |
-| Frontend    | Expo SDK 54 + React Native 0.81         |
-| Navigation  | expo-router v6                          |
-| State       | Zustand                                 |
-| Backend/DB  | Supabase (PostgreSQL + Auth + Realtime) |
-| Predictions | Supabase Edge Functions (Deno)          |
-| Build/CI    | EAS CLI v18.0.3 + GitHub Actions        |
-| OTA Updates | expo-updates (first-launch RTL reload)  |
+| Layer       | Technology                                |
+| ----------- | ----------------------------------------- |
+| Frontend    | Expo SDK 54 + React Native 0.81           |
+| Navigation  | expo-router v6                            |
+| State       | Zustand                                   |
+| Backend/DB  | Supabase (PostgreSQL + Auth + Realtime)   |
+| Predictions | Supabase Edge Functions (Deno)            |
+| Build/CI    | EAS CLI v18.0.3 + GitHub Actions          |
+| Submit      | EAS Submit → Google Play (internal track) |
+| OTA Updates | expo-updates (first-launch RTL reload)    |
