@@ -319,13 +319,13 @@
 
 ## Architecture Reference
 
-| Layer       | Technology                              |
-| ----------- | --------------------------------------- |
-| Frontend    | Expo SDK 54 + React Native 0.81         |
-| Navigation  | expo-router v6                          |
-| State       | Zustand                                 |
-| Backend/DB  | Supabase (PostgreSQL + Auth + Realtime) |
-| Predictions | Supabase Edge Functions (Deno)          |
-| Build/CI    | EAS CLI v18.0.3 + GitHub Actions        |
-| Submit      | EAS Submit → Google Play (internal track)|
-| OTA Updates | expo-updates (first-launch RTL reload)  |
+| Layer       | Technology                                |
+| ----------- | ----------------------------------------- |
+| Frontend    | Expo SDK 54 + React Native 0.81           |
+| Navigation  | expo-router v6                            |
+| State       | Zustand                                   |
+| Backend/DB  | Supabase (PostgreSQL + Auth + Realtime)   |
+| Predictions | Supabase Edge Functions (Deno)            |
+| Build/CI    | EAS CLI v18.0.3 + GitHub Actions          |
+| Submit      | EAS Submit → Google Play (internal track) |
+| OTA Updates | expo-updates (first-launch RTL reload)    |
