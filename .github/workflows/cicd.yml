@@ -135,6 +135,11 @@ jobs:
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: eas build --platform android --profile production --non-interactive
 
+      - name: Submit to Google Play (internal track)
+        env:
+          EAS_NO_VCS: "1"
+        run: eas submit --platform android --profile production --latest --non-interactive
+
   release:
     name: GitHub Release
     if: github.event_name != 'pull_request'

@@ -24,9 +24,10 @@ This document defines the strict technology stack and architectural guidelines f
 
 ## 5. Deployment & CI/CD
 * **Build System:** EAS (Expo Application Services).
+* **Auto-Submit:** EAS Submit configured for automatic upload to Google Play internal track after each production build. Config: `eas.json` → `submit.production.android` with `serviceAccountKeyPath` and `track: "internal"`.
 * **OTA Updates:** Expo Updates configured for deploying over-the-air JavaScript patches without App Store/Play Store reviews.
 * **Version Control:** GitHub.
-* **Pipeline:** GitHub Actions configured to run type-checks and trigger EAS builds on `main` branch merges.
+* **Pipeline:** GitHub Actions configured to run type-checks, trigger EAS builds on `main` branch merges, and auto-submit the built AAB to Google Play via `eas submit`.
 
 ## 6. Observability
 * **Crash Reporting:** Sentry (`@sentry/react-native`).
