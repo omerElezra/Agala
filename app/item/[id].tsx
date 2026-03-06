@@ -304,35 +304,87 @@ export default function ItemDetailScreen() {
     if (!item || !product) return;
     setSaving(true);
 
-    // Update product name + category
-    const updates: { name?: string; category?: string | null } = {};
-    if (editName.trim() && editName.trim() !== product.name) {
-      updates.name = editName.trim();
-    }
-    if (editCategory !== product.category) {
-      updates.category = editCategory;
-    }
-    if (Object.keys(updates).length > 0) {
-      const { error } = await supabase
-        .from("products")
-        .update(updates)
-        .eq("id", product.id);
+    let productToUse = product;
 
-      if (error) {
-        showBanner("שגיאה בעדכון המוצר", "error");
-        setSaving(false);
-        return;
+    // Update product name + category
+    const wantNameChange = editName.trim() && editName.trim() !== product.name;
+    const wantCategoryChange = editCategory !== product.category;
+
+    if (wantNameChange || wantCategoryChange) {
+      // If the product is global (not owned by this household), we must
+      // create a new custom product and re-link the shopping list item.
+      // RLS blocks updates to products not owned by the user's household.
+      const isOwnProduct =
+        product.is_custom &&
+        product.created_by_household === user?.household_id;
+
+      if (isOwnProduct) {
+        // Direct update on own custom product
+        const updates: { name?: string; category?: string | null } = {};
+        if (wantNameChange) updates.name = editName.trim();
+        if (wantCategoryChange) updates.category = editCategory;
+
+        const { data: updatedProduct, error } = await supabase
+          .from("products")
+          .update(updates)
+          .eq("id", product.id)
+          .select()
+          .single();
+
+        if (error || !updatedProduct) {
+          showBanner("שגיאה בעדכון המוצר", "error");
+          setSaving(false);
+          return;
+        }
+        productToUse = updatedProduct as ProductRow;
+      } else {
+        // Global or foreign product → create a new custom product,
+        // then re-point the shopping list item to it.
+        const { data: newProduct, error: createErr } = await supabase
+          .from("products")
+          .insert({
+            name: wantNameChange ? editName.trim() : product.name,
+            category: wantCategoryChange ? editCategory : product.category,
+            is_custom: true,
+            created_by_household: user?.household_id ?? null,
+          })
+          .select()
+          .single();
+
+        if (createErr || !newProduct) {
+          showBanner("שגיאה ביצירת מוצר מותאם", "error");
+          setSaving(false);
+          return;
+        }
+
+        // Re-link shopping list item to the new product
+        const { error: relinkErr } = await supabase
+          .from("shopping_list")
+          .update({ product_id: newProduct.id })
+          .eq("id", item.id)
+          .select()
+          .single();
+
+        if (relinkErr) {
+          showBanner("שגיאה בעדכון הקישור למוצר", "error");
+          setSaving(false);
+          return;
+        }
+
+        productToUse = newProduct as ProductRow;
       }
     }
 
     // Update quantity on shopping list item
     if (editQuantity !== item.quantity) {
-      const { error } = await supabase
+      const { data: updatedItem, error } = await supabase
         .from("shopping_list")
         .update({ quantity: editQuantity })
-        .eq("id", item.id);
+        .eq("id", item.id)
+        .select()
+        .single();
 
-      if (error) {
+      if (error || !updatedItem) {
         showBanner("שגיאה בעדכון הכמות", "error");
         setSaving(false);
         return;
@@ -344,8 +396,10 @@ export default function ItemDetailScreen() {
       await fetchList(user.household_id);
     }
 
+    showBanner("השינויים נשמרו בהצלחה ✓", "success");
     setSaving(false);
-    router.back();
+    // Short delay so user sees success banner before navigating back
+    setTimeout(() => router.back(), 600);
   }, [
     item,
     product,
@@ -694,20 +748,29 @@ export default function ItemDetailScreen() {
           headerTitleAlign: "center",
           headerTitleStyle: { fontWeight: "700" },
           headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="arrow-back" size={24} color={dark.text} />
+            </TouchableOpacity>
+          ),
+          headerRight: () => (
             <View
               style={{
                 flexDirection: "row",
                 direction: "ltr",
                 alignItems: "center",
                 gap: 8,
-                paddingEnd: 4,
+                paddingStart: 4,
               }}
             >
               <TouchableOpacity
                 onPress={() => {
                   signOut().catch(() => {});
                 }}
-                style={{ padding: 8 }}
+                style={{ padding: 2 }}
                 activeOpacity={0.6}
               >
                 <MaterialCommunityIcons
@@ -728,15 +791,6 @@ export default function ItemDetailScreen() {
                 </Text>
               ) : null}
             </View>
-          ),
-          headerRight: () => (
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
-              activeOpacity={0.6}
-            >
-              <Ionicons name="arrow-forward" size={24} color={dark.text} />
-            </TouchableOpacity>
           ),
         }}
       />
@@ -1359,14 +1413,12 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    textAlign: "right",
   },
   category: {
     fontSize: 13,
     color: dark.secondary,
     marginTop: 8,
     fontWeight: "500",
-    textAlign: "right",
   },
   categoryLabel: {
     fontSize: 13,
@@ -1374,14 +1426,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
     fontWeight: "700",
-    textAlign: "right",
   },
   categoryScroll: {
     maxHeight: 36,
-    textAlign: "right",
   },
   categoryRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     gap: 8,
     paddingEnd: 2,
   },
@@ -1416,13 +1466,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: "right",
     writingDirection: "rtl",
   },
 
   // ── Quantity (compact row) ──────────────────────────────
   qtyCard: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: dark.surface,
@@ -1436,7 +1485,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: dark.text,
-    textAlign: "right",
   },
   qtyCompactRow: {
     flexDirection: "row",
@@ -1464,7 +1512,7 @@ const styles = StyleSheet.create({
 
   // ── Manual edit inline ────────────────────────────────────
   manualEditInline: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 6,
     marginTop: 2,
@@ -1495,13 +1543,13 @@ const styles = StyleSheet.create({
     borderColor: dark.border,
   },
   predHeader: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
   },
   predTitleRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
@@ -1509,7 +1557,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: dark.text,
-    textAlign: "right",
   },
   pillToggle: {
     flexDirection: "row",
@@ -1541,7 +1588,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   innerRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
     backgroundColor: dark.background,
@@ -1566,20 +1613,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: dark.textSecondary,
     fontWeight: "500",
-    textAlign: "right",
   },
   innerRowValue: {
     fontSize: 17,
     fontWeight: "700",
     color: dark.text,
     marginTop: 2,
-    textAlign: "right",
   },
   innerRowSub: {
     fontSize: 11,
     color: dark.textSecondary,
     marginTop: 2,
-    textAlign: "right",
   },
 
   // ── Progress bar inside inner row ─────────────────────────
@@ -1620,7 +1664,6 @@ const styles = StyleSheet.create({
     color: dark.textMuted,
     marginTop: 1,
     fontWeight: "500",
-    textAlign: "right",
   },
   miniStatDivider: {
     width: 1,

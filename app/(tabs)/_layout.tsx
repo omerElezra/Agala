@@ -59,7 +59,7 @@ const headerStyles = StyleSheet.create({
     direction: "ltr",
     alignItems: "center",
     gap: 8,
-    paddingEnd: 4,
+    paddingStart: 4,
   },
   exitName: { fontSize: 13, fontWeight: "600", color: dark.textSecondary },
   exitBtn: { padding: 8 },
@@ -90,8 +90,8 @@ export default function TabLayout() {
           letterSpacing: 0.5,
         },
         headerTitle: () => <HeaderLogo />,
-        headerLeft: () => <HeaderExit />,
-        headerRight: () => null,
+        headerLeft: () => null,
+        headerRight: () => <HeaderExit />,
         tabBarStyle: {
           backgroundColor: dark.surface,
           borderTopColor: dark.border,
@@ -107,14 +107,17 @@ export default function TabLayout() {
         tabBarLabelPosition: "beside-icon",
       }}
     >
+
+
       <Tabs.Screen
-        name="settings"
+        name="two"
         options={{
-          title: "הגדרות",
-          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
+          title: "היסטוריה",
+          tabBarIcon: ({ color }) => (
+            <TabBarIcon name="history" color={color} />
+          ),
         }}
       />
-
       <Tabs.Screen
         name="index"
         options={{
@@ -125,14 +128,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="settings"
         options={{
-          title: "היסטוריה",
-          tabBarIcon: ({ color }) => (
-            <TabBarIcon name="history" color={color} />
-          ),
+          title: "הגדרות",
+          tabBarIcon: ({ color }) => <TabBarIcon name="cog" color={color} />,
         }}
       />
+
     </Tabs>
   );
 }

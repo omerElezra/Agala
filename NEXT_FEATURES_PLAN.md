@@ -1,7 +1,7 @@
 # Agala — Next Features Plan
 
 > Product roadmap items for upcoming development.
-> Last updated: 2026-03-01
+> Last updated: 2026-03-06
 > Status: Active development
 
 ## Planned Features
@@ -32,6 +32,27 @@
   - **Import rewrite**: 3 options — file picker, clipboard paste, manual text input. ✅
   - **Google Play rate button**: Opens Play Store listing. ✅
   - **Full RTL alignment**: All settings text right-aligned. ✅
+  - **Placeholder color**: Household join code input uses proper `dark.placeholder` color. ✅
+
+- [x] **Sort & Filter on Main Screen** ✅ Implemented (Step 5r)
+  - **Sort chips**: Name (שם), Category (קטגוריה), Recent (שונה לאחרונה) — applied to both cart and all-products sections. ✅
+  - **Default sort**: "שונה לאחרונה" (by `added_at` newest-first) is the default on every screen focus. ✅
+  - **useFocusEffect reset**: Sort selection resets automatically when the screen gains focus. ✅
+  - **All products counter**: Item count badge displayed next to "כל המוצרים" header. ✅
+
+- [x] **Auth Screen Polish** ✅ Implemented (Step 5r)
+  - **Visual differentiation**: Login and sign-up have distinct headers, logo sizes, and form fields. ✅
+  - **Verify password**: Sign-up mode includes password confirmation field with validation. ✅
+  - **Placeholder fix**: Password placeholder no longer disappears on mode toggle (key-based remount). ✅
+
+- [x] **Category Selection Sheet** ✅ Implemented (Step 5r)
+  - **CategorySheet component**: Bottom sheet with 16 categories (emoji + name), highlighting current selection. ✅
+  - **New product flow**: When category can't be auto-detected, user picks category before creation. ✅
+  - **Category detector expanded**: Added 10+ missing Hebrew vegetable keywords. ✅
+
+- [x] **Product Save Bug Fix (Clone-on-Edit)** ✅ Implemented (Step 5r)
+  - **RLS-safe editing**: Global products are cloned as custom products when edited, preventing silent RLS failures. ✅
+  - **Shopping list re-linking**: Cloned product is automatically linked to the existing shopping list item. ✅
 
 - [x] **Smart AI Suggestions Module (הצעות AI חכמות)** ✅ Implemented (Step 5n)
   - **Location**: Main shopping list screen, directly below search bar. ✅

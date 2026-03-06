@@ -7,8 +7,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import * as DocumentPicker from "expo-document-picker";
-import * as StoreReview from "expo-store-review";
 import { File as ExpoFile } from "expo-file-system";
+import * as StoreReview from "expo-store-review";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,7 +19,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -359,6 +359,7 @@ export default function SettingsScreen() {
                 value={joinId}
                 onChangeText={setJoinId}
                 placeholder="הדביקו קוד משק בית"
+                placeholderTextColor={dark.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -410,6 +411,7 @@ export default function SettingsScreen() {
                 size={22}
                 color={dark.accent}
               />
+
               <Text style={styles.importOptionText}>טען מקובץ</Text>
               <Text style={styles.importOptionSub}>CSV, TXT</Text>
             </TouchableOpacity>
@@ -432,7 +434,6 @@ export default function SettingsScreen() {
               <Text style={styles.importOptionText}>הדבק מהלוח</Text>
               <Text style={styles.importOptionSub}>העתיקו רשימה קודם</Text>
             </TouchableOpacity>
-
             {/* Manual text input toggle */}
             <TouchableOpacity
               style={[
@@ -603,7 +604,6 @@ const styles = StyleSheet.create({
     color: dark.accent,
     marginBottom: 14,
     letterSpacing: 0.3,
-    textAlign: "right",
   },
   row: {
     paddingVertical: 12,
@@ -615,19 +615,17 @@ const styles = StyleSheet.create({
     color: dark.textSecondary,
     marginBottom: 4,
     fontWeight: "600",
-    textAlign: "right",
   },
   value: {
     fontSize: 16,
     color: dark.text,
     fontWeight: "500",
-    textAlign: "right",
   },
   editIcon: {
     fontSize: 14,
   },
   editRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginTop: 4,
@@ -641,7 +639,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: "right",
   },
   saveBtn: {
     paddingVertical: 10,
@@ -666,7 +663,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: dark.secondary,
     fontWeight: "700",
-    textAlign: "right",
   },
   copyIcon: {
     fontSize: 14,
@@ -676,7 +672,6 @@ const styles = StyleSheet.create({
     color: dark.textSecondary,
     marginTop: 8,
     lineHeight: 20,
-    textAlign: "right",
   },
   joinSection: {
     marginTop: 16,
@@ -685,7 +680,7 @@ const styles = StyleSheet.create({
     borderTopColor: dark.border,
   },
   joinRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginTop: 8,
@@ -699,7 +694,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: "right",
   },
   joinBtn: {
     paddingVertical: 12,
@@ -753,21 +747,19 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: dark.textSecondary,
     marginBottom: 4,
-    textAlign: "right",
   },
   csvExampleText: {
     fontSize: 13,
     color: dark.textMuted,
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
     lineHeight: 20,
-    textAlign: "right",
   },
   importOptions: {
     gap: 10,
     marginBottom: 4,
   },
   importOptionBtn: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     gap: 12,
     backgroundColor: dark.background,
@@ -781,7 +773,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: dark.text,
-    textAlign: "right",
   },
   importOptionSub: {
     fontSize: 11,
@@ -800,7 +791,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: dark.input,
     color: dark.inputText,
-    textAlign: "right",
     writingDirection: "rtl",
     minHeight: 120,
   },

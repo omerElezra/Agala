@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import { dark } from "@/constants/theme";
+import { supabase } from "@/src/lib/supabase";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Animated,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -9,14 +10,12 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/src/lib/supabase';
-import { dark } from '@/constants/theme';
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-type AuthMode = 'login' | 'signup';
-type BannerType = 'error' | 'success' | 'info';
+type AuthMode = "login" | "signup";
+type BannerType = "error" | "success" | "info";
 
 interface Banner {
   type: BannerType;
@@ -24,10 +23,11 @@ interface Banner {
 }
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState<AuthMode>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [verifyPassword, setVerifyPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [banner, setBanner] = useState<Banner | null>(null);
 
@@ -35,7 +35,7 @@ export default function AuthScreen() {
   const showBanner = (type: BannerType, message: string) => {
     setBanner({ type, message });
     // Auto-dismiss success/info banners after 5s
-    if (type !== 'error') {
+    if (type !== "error") {
       setTimeout(() => setBanner(null), 5000);
     }
   };
@@ -44,38 +44,49 @@ export default function AuthScreen() {
     setBanner(null); // clear previous banner
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
+    const trimmedVerifyPassword = verifyPassword.trim();
 
-    console.log('[Auth] handleAuth called', { mode, email: trimmedEmail });
+    console.log("[Auth] handleAuth called", { mode, email: trimmedEmail });
 
     if (!trimmedEmail || !trimmedPassword) {
-      showBanner('error', 'יש למלא אימייל וסיסמה');
+      showBanner("error", "יש למלא אימייל וסיסמה");
       return;
     }
 
-    if (mode === 'signup' && trimmedPassword.length < 6) {
-      showBanner('error', 'הסיסמה חייבת להכיל לפחות 6 תווים');
-      return;
+    if (mode === "signup") {
+      if (trimmedPassword.length < 6) {
+        showBanner("error", "הסיסמה חייבת להכיל לפחות 6 תווים");
+        return;
+      }
+      if (trimmedPassword !== trimmedVerifyPassword) {
+        showBanner("error", "הסיסמאות אינן תואמות");
+        return;
+      }
+      if (!displayName.trim()) {
+        showBanner("error", "יש להזין שם תצוגה");
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
-      if (mode === 'login') {
-        console.log('[Auth] Calling signInWithPassword…');
+      if (mode === "login") {
+        console.log("[Auth] Calling signInWithPassword…");
         const { data, error } = await supabase.auth.signInWithPassword({
           email: trimmedEmail,
           password: trimmedPassword,
         });
 
         if (error) {
-          console.error('[Auth] signIn error:', error.message, error);
-          showBanner('error', translateAuthError(error.message));
+          console.error("[Auth] signIn error:", error.message, error);
+          showBanner("error", translateAuthError(error.message));
         } else {
-          console.log('[Auth] signIn success, session:', !!data.session);
+          console.log("[Auth] signIn success, session:", !!data.session);
           // Session will trigger redirect via useAuth — no banner needed
         }
       } else {
-        console.log('[Auth] Calling signUp…');
+        console.log("[Auth] Calling signUp…");
         const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password: trimmedPassword,
@@ -85,24 +96,30 @@ export default function AuthScreen() {
         });
 
         if (error) {
-          console.error('[Auth] signUp error:', error.message, error);
-          showBanner('error', translateAuthError(error.message));
+          console.error("[Auth] signUp error:", error.message, error);
+          showBanner("error", translateAuthError(error.message));
         } else if (data.session) {
           // Auto-confirmed → session exists → redirect will happen
-          console.log('[Auth] signUp success with session');
-          showBanner('success', 'ברוכים הבאים! 🎉 החשבון נוצר בהצלחה.');
+          console.log("[Auth] signUp success with session");
+          showBanner("success", "ברוכים הבאים! 🎉 החשבון נוצר בהצלחה.");
         } else if (data.user && !data.session) {
           // Email confirmation required
-          console.log('[Auth] signUp success, confirmation required');
-          showBanner('info', '📧 נשלח אימייל אימות. בדקו את תיבת הדואר ולחצו על הקישור.');
+          console.log("[Auth] signUp success, confirmation required");
+          showBanner(
+            "info",
+            "📧 נשלח אימייל אימות. בדקו את תיבת הדואר ולחצו על הקישור.",
+          );
         } else {
           // User already exists (Supabase returns fake success to prevent enumeration)
-          showBanner('info', 'אם החשבון קיים, נשלח אימייל אימות. בדקו את תיבת הדואר.');
+          showBanner(
+            "info",
+            "אם החשבון קיים, נשלח אימייל אימות. בדקו את תיבת הדואר.",
+          );
         }
       }
     } catch (err) {
-      console.error('[Auth] Unexpected error:', err);
-      showBanner('error', 'שגיאה לא צפויה. בדקו חיבור לאינטרנט.');
+      console.error("[Auth] Unexpected error:", err);
+      showBanner("error", "שגיאה לא צפויה. בדקו חיבור לאינטרנט.");
     } finally {
       setLoading(false);
     }
@@ -110,24 +127,42 @@ export default function AuthScreen() {
 
   const toggleMode = () => {
     setBanner(null);
-    setMode((prev) => (prev === 'login' ? 'signup' : 'login'));
+    setPassword("");
+    setVerifyPassword("");
+    setMode((prev) => (prev === "login" ? "signup" : "login"));
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.inner}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         {/* Logo / Title */}
-        <View style={styles.header}>
-          <Image
-            source={require('@/assets/images/icon.png')}
-            style={styles.logoImage}
-          />
-          <Text style={styles.subtitle}>
-            {mode === 'login' ? 'התחברות לחשבון' : 'יצירת חשבון חדש'}
+        <View
+          style={mode === "login" ? styles.headerLogin : styles.headerSignup}
+        >
+          {mode === "login" ? (
+            <Image
+              source={require("@/assets/images/icon.png")}
+              style={styles.logoImageLarge}
+            />
+          ) : (
+            <Image
+              source={require("@/assets/images/icon.png")}
+              style={styles.logoImageSmall}
+            />
+          )}
+          <Text
+            style={mode === "login" ? styles.titleLogin : styles.titleSignup}
+          >
+            {mode === "login" ? "התחברות לחשבון" : "יצירת חשבון חדש"}
           </Text>
+          {mode === "signup" && (
+            <Text style={styles.subtitle}>
+              הירשמו כעת כדי להתחיל להשתמש באפליקציה!
+            </Text>
+          )}
         </View>
 
         {/* Inline Banner (replaces Alert.alert for web compatibility) */}
@@ -135,9 +170,9 @@ export default function AuthScreen() {
           <View
             style={[
               styles.banner,
-              banner.type === 'error' && styles.bannerError,
-              banner.type === 'success' && styles.bannerSuccess,
-              banner.type === 'info' && styles.bannerInfo,
+              banner.type === "error" && styles.bannerError,
+              banner.type === "success" && styles.bannerSuccess,
+              banner.type === "info" && styles.bannerInfo,
             ]}
           >
             <Text style={styles.bannerText}>{banner.message}</Text>
@@ -149,7 +184,7 @@ export default function AuthScreen() {
 
         {/* Form */}
         <View style={styles.form}>
-          {mode === 'signup' && (
+          {mode === "signup" && (
             <TextInput
               style={styles.input}
               placeholder="שם תצוגה"
@@ -173,16 +208,31 @@ export default function AuthScreen() {
           />
 
           <TextInput
+            key={`password-${mode}`}
             style={styles.input}
-            placeholder="סיסמא"
+            placeholder="סיסמה"
             placeholderTextColor={dark.placeholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             autoCapitalize="none"
             autoCorrect={false}
-            textContentType={mode === 'signup' ? 'newPassword' : 'password'}
+            textContentType={mode === "signup" ? "newPassword" : "password"}
           />
+
+          {mode === "signup" && (
+            <TextInput
+              style={styles.input}
+              placeholder="אימות סיסמה"
+              placeholderTextColor={dark.placeholder}
+              value={verifyPassword}
+              onChangeText={setVerifyPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              textContentType="newPassword"
+            />
+          )}
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -194,7 +244,7 @@ export default function AuthScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>
-                {mode === 'login' ? 'התחברות' : 'הרשמה'}
+                {mode === "login" ? "התחברות" : "הרשמה"}
               </Text>
             )}
           </TouchableOpacity>
@@ -203,9 +253,7 @@ export default function AuthScreen() {
         {/* Toggle login/signup */}
         <TouchableOpacity onPress={toggleMode} style={styles.toggleButton}>
           <Text style={styles.toggleText}>
-            {mode === 'login'
-              ? 'אין לך חשבון? הרשמה'
-              : 'יש לך חשבון? התחברות'}
+            {mode === "login" ? "אין לך חשבון? הרשמה" : "יש לך חשבון? התחברות"}
           </Text>
         </TouchableOpacity>
 
@@ -217,26 +265,30 @@ export default function AuthScreen() {
 
 // ── Translate common Supabase auth errors to Hebrew ──────────
 function translateAuthError(message: string): string {
-  if (message.includes('Invalid login credentials')) {
-    return 'אימייל או סיסמה לא נכונים';
+  if (message.includes("Invalid login credentials")) {
+    return "אימייל או סיסמה לא נכונים";
   }
-  if (message.includes('User already registered')) {
-    return 'המשתמש כבר רשום במערכת';
+  if (message.includes("User already registered")) {
+    return "המשתמש כבר רשום במערכת";
   }
-  if (message.includes('Email not confirmed')) {
-    return 'יש לאשר את כתובת האימייל לפני ההתחברות';
+  if (message.includes("Email not confirmed")) {
+    return "יש לאשר את כתובת האימייל לפני ההתחברות";
   }
-  if (message.includes('Password should be at least')) {
-    return 'הסיסמה חייבת להכיל לפחות 6 תווים';
+  if (message.includes("Password should be at least")) {
+    return "הסיסמה חייבת להכיל לפחות 6 תווים";
   }
-  if (message.includes('Unable to validate email')) {
-    return 'כתובת אימייל לא תקינה';
+  if (message.includes("Unable to validate email")) {
+    return "כתובת אימייל לא תקינה";
   }
-  if (message.includes('rate limit') || message.includes('too many requests') || message.includes('For security purposes')) {
-    return 'נסיונות רבים מדי. נסו שוב בעוד מספר דקות.';
+  if (
+    message.includes("rate limit") ||
+    message.includes("too many requests") ||
+    message.includes("For security purposes")
+  ) {
+    return "נסיונות רבים מדי. נסו שוב בעוד מספר דקות.";
   }
-  if (message.includes('Email rate limit exceeded')) {
-    return 'שלחנו יותר מדי אימיילים. נסו שוב בעוד מספר דקות.';
+  if (message.includes("Email rate limit exceeded")) {
+    return "שלחנו יותר מדי אימיילים. נסו שוב בעוד מספר דקות.";
   }
   return message;
 }
@@ -249,27 +301,39 @@ const styles = StyleSheet.create({
   },
   inner: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingStart: 28,
     paddingEnd: 28,
   },
-  header: {
-    alignItems: 'center',
+  headerLogin: {
+    alignItems: "center",
     marginBottom: 44,
   },
-  emoji: {
-    fontSize: 72,
+  headerSignup: {
+    alignItems: "center",
+    marginBottom: 20,
+    marginTop: -20,
+  },
+  logoImageLarge: {
+    width: 250,
+    height: 250,
+    borderRadius: 20,
+    marginBottom: 20,
+  },
+  logoImageSmall: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
     marginBottom: 10,
   },
-  logoImage: {
-    width: 280,
-    height: 280,
-    borderRadius: 20,
-    marginBottom: 2,
+  titleLogin: {
+    fontSize: 28,
+    color: dark.textSecondary,
+    fontWeight: "500",
   },
-  title: {
-    fontSize: 40,
-    fontWeight: '800',
+  titleSignup: {
+    fontSize: 32,
+    fontWeight: "800",
     color: dark.accent,
     marginBottom: 6,
     letterSpacing: 1,
@@ -277,22 +341,22 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: dark.textSecondary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   byline: {
     fontSize: 12,
     color: dark.textMuted,
-    fontWeight: '400',
+    fontWeight: "400",
     marginTop: 24,
     marginBottom: 16,
     letterSpacing: 0.5,
-    textAlign: 'center',
+    textAlign: "center",
   },
   // ── Banner (inline error / success / info) ─────────────────
   banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingStart: 16,
     paddingEnd: 12,
     paddingTop: 14,
@@ -320,7 +384,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: dark.text,
     lineHeight: 20,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   bannerClose: {
     fontSize: 16,
@@ -342,15 +406,15 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     fontSize: 16,
     color: dark.inputText,
-    textAlign: 'right',
-    writingDirection: 'rtl',
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   button: {
     backgroundColor: dark.accent,
     borderRadius: 14,
     paddingTop: 18,
     paddingBottom: 18,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
     shadowColor: dark.fabShadow,
     shadowOffset: { width: 0, height: 4 },
@@ -362,17 +426,17 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   toggleButton: {
     marginTop: 24,
-    alignItems: 'center',
+    alignItems: "center",
   },
   toggleText: {
     color: dark.secondary,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
