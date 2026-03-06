@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import {
   ActivityIndicator,
+  I18nManager,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -34,6 +35,12 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
+
+// Force RTL layout for all devices (Hebrew app)
+if (!I18nManager.isRTL) {
+  I18nManager.allowRTL(true);
+  I18nManager.forceRTL(true);
+}
 
 function HeaderExit({
   displayName,
@@ -145,7 +152,7 @@ function RootLayoutNav() {
             options={{
               headerShown: true,
               presentation: "modal",
-              headerLeft: () => (
+              headerRight: () => (
                 <HeaderExit
                   displayName={user?.display_name ?? ""}
                   onSignOut={() => {

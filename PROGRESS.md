@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-03-02
+> Last updated: 2026-03-06
 
 ---
 
@@ -195,6 +195,22 @@
 - [x] **Item detail: RTL alignment fix** — `manualEditInline` flexDirection changed to `row-reverse`; miniStatNum and miniStatLabel text aligned right.
 - [x] **06_Nightly_Prediction.md** — New comprehensive technical reference document covering per-item EMA algorithm, execution flow, client-side prediction, data flow, edge cases, and environment variables.
 - [x] **Documentation updated** — Updated all relevant MD files (03_Prediction_Logic, 04_UX_and_DataFlow, 02_Database_Schema, 00_PRD, README, NEXT_FEATURES_PLAN) to reflect per-item normalisation and new features.
+
+### 5r. Auth UX, Sort & Category Features, RTL & Bug Fixes (2026-03-06)
+
+- [x] **Auth screen visual differentiation** — Login and sign-up modes now have distinct visual styles: different header text/subtitle, logo size (120px login vs 80px signup), and sign-up mode includes a "verify password" (אימות סיסמא) field with matching-password validation
+- [x] **Password placeholder fix** — Fixed disappearing "סיסמא" placeholder text by adding `key={password-${mode}}` to force TextInput remount and clearing password state on mode toggle
+- [x] **Global RTL force for all devices** — Re-enabled `I18nManager.forceRTL(true)` at module level in `app/_layout.tsx`; added `supportsRTL: true` and `forcesRTL: true` to `app.json` under both `ios` and `android` configs, plus `ios.infoPlist` Hebrew locale
+- [x] **Header icon swap (all screens)** — Moved exit+username to `headerRight` and back arrow to `headerLeft` across root layout, tabs layout, two.tsx, and item detail to align with RTL conventions
+- [x] **Sort-by feature** — Added sort chips (שם, קטגוריה, שונה לאחרונה) to both shopping cart and all products sections on the main screen, with "שונה לאחרונה" (recent by `added_at`) as the default sort
+- [x] **useFocusEffect sort reset** — Sort selection resets to "שונה לאחרונה" every time the main screen gains focus, ensuring consistent default experience
+- [x] **All products counter badge** — Added item count badge (e.g., "32") next to the "כל המוצרים" section header
+- [x] **Page title change** — Main screen title changed from "הרשימה שלי" to "רשימת הקניות"
+- [x] **Product save RLS bug fix (clone-on-edit)** — Fixed silent save failure when editing global products (RLS blocks UPDATE on `is_custom=false` products). New logic detects product ownership; global/foreign products are cloned as custom products and re-linked in the shopping list
+- [x] **CategorySheet component** — New `src/components/CategorySheet.tsx` bottom sheet for quick category selection with 16 categories (emoji + Hebrew name), highlighting current selection
+- [x] **CategorySheet integration (add-product flow)** — When `detectCategory()` returns null for a new product, the CategorySheet auto-opens to let the user pick a category before product creation. Uses `pendingAddName` state to defer creation until category is selected
+- [x] **categoryDetector keywords expanded** — Added missing vegetables: סלק, עלי סלק, חוביזה, עולש, עלי חרדל, ג'רגיר, פול, במיה, חלבלוב, לוביה
+- [x] **Settings placeholder color** — Added `placeholderTextColor={dark.placeholder}` to the "הדביקו קוד משק בית" TextInput in settings
 
 ---
 

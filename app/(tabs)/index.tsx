@@ -1,4 +1,5 @@
 import { dark } from "@/constants/theme";
+import { CategorySheet } from "@/src/components/CategorySheet";
 import { ShoppingListItem } from "@/src/components/ShoppingListItem";
 import { SnoozeSheet } from "@/src/components/SnoozeSheet";
 import { SuggestionChips } from "@/src/components/SuggestionChips";
@@ -11,7 +12,7 @@ import {
 } from "@/src/store/shoppingListStore";
 import { detectCategory } from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -62,9 +63,25 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "ממתקים ואפייה": "🎂",
 };
 
+type CartSortMode = "name" | "category" | "recent";
+type AllProductsSortMode = "name" | "category" | "recent";
+
+const CART_SORT_OPTIONS: { key: CartSortMode; label: string }[] = [
+  { key: "recent", label: "שונה לאחרונה" },
+  { key: "name", label: "שם" },
+  { key: "category", label: "קטגוריה" },
+];
+
+const ALL_SORT_OPTIONS: { key: AllProductsSortMode; label: string }[] = [
+  { key: "recent", label: "שונה לאחרונה" },
+  { key: "name", label: "שם" },
+  { key: "category", label: "קטגוריה" },
+];
+
 type ListRow =
   | ShoppingItem
   | { type: "header"; title: string; emoji: string; key: string }
+  | { type: "cart-category"; title: string; emoji: string; key: string }
   | { type: "divider"; key: string }
   | { type: "all-products-header"; key: string }
   | { type: "all-product-category"; title: string; emoji: string; key: string }
@@ -91,10 +108,19 @@ export default function HomeScreen() {
   const addItem = useShoppingListStore((s) => s.addItem);
 
   const [snoozeTarget, setSnoozeTarget] = useState<ShoppingItem | null>(null);
+  const [categoryTarget, setCategoryTarget] = useState<ShoppingItem | null>(
+    null,
+  );
+  // When adding a new product and detectCategory returns null, stash the name
+  // so the CategorySheet can ask the user to pick a category before creating.
+  const [pendingAddName, setPendingAddName] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllProducts, setShowAllProducts] = useState(true);
   const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
+  const [cartSort, setCartSort] = useState<CartSortMode>("recent");
+  const [allProductsSort, setAllProductsSort] =
+    useState<AllProductsSortMode>("recent");
 
   // ── Add item directly from search (no-match case) ──────────
   const handleAddFromSearch = useCallback(async () => {
@@ -141,13 +167,21 @@ export default function HomeScreen() {
           }
         }
 
+        // If still no category, ask the user to pick one via CategorySheet
+        if (!category) {
+          setPendingAddName(trimmed);
+          setSearchQuery("");
+          setIsAddingFromSearch(false);
+          return;
+        }
+
         const { data: newProduct, error } = await supabase
           .from("products")
           .insert({
             name: trimmed,
             is_custom: true,
             created_by_household: user.household_id,
-            ...(category ? { category } : {}),
+            category,
           })
           .select()
           .single();
@@ -179,6 +213,14 @@ export default function HomeScreen() {
 
     return unsub;
   }, [user?.household_id, fetchList, subscribeRealtime, flushOfflineQueue]);
+
+  // Reset sort state when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      setCartSort("recent");
+      setAllProductsSort("recent");
+    }, []),
+  );
 
   // ── Pull-to-refresh ────────────────────────────────────────
   const onRefresh = useCallback(async () => {
@@ -251,6 +293,99 @@ export default function HomeScreen() {
     }
   }, [snoozeTarget, removeItem]);
 
+  // ── Quick category change (clone-on-edit for global products) ──
+  // Also handles the "pending add" flow when a new product has no auto-category.
+  const handleCategoryChange = useCallback(
+    async (newCategory: string) => {
+      if (!user?.household_id) return;
+
+      // ── Flow A: user is picking a category for a brand-new product ──
+      if (pendingAddName) {
+        const name = pendingAddName;
+        setPendingAddName(null);
+
+        const { data: newProduct, error } = await supabase
+          .from("products")
+          .insert({
+            name,
+            category: newCategory,
+            is_custom: true,
+            created_by_household: user.household_id,
+          })
+          .select()
+          .single();
+
+        if (error || !newProduct) {
+          console.error("[index] create product error:", error?.message);
+          return;
+        }
+
+        addItem(newProduct.id, user.household_id, 1, newProduct);
+        return;
+      }
+
+      // ── Flow B: user is editing an existing product's category ──
+      if (!categoryTarget?.product) return;
+      const product = categoryTarget.product;
+      if (newCategory === product.category) {
+        setCategoryTarget(null);
+        return;
+      }
+
+      const isOwnProduct =
+        product.is_custom && product.created_by_household === user.household_id;
+
+      if (isOwnProduct) {
+        // Direct update on own custom product
+        const { error } = await supabase
+          .from("products")
+          .update({ category: newCategory })
+          .eq("id", product.id);
+
+        if (error) {
+          console.error("[index] category update error:", error.message);
+        }
+      } else {
+        // Global / foreign product → clone as custom, re-link ALL household items
+        const { data: newProduct, error: createErr } = await supabase
+          .from("products")
+          .insert({
+            name: product.name,
+            category: newCategory,
+            is_custom: true,
+            created_by_household: user.household_id,
+          })
+          .select()
+          .single();
+
+        if (createErr || !newProduct) {
+          console.error(
+            "[index] create custom product error:",
+            createErr?.message,
+          );
+          setCategoryTarget(null);
+          return;
+        }
+
+        // Re-link all shopping list items for this product in this household
+        const { error: relinkErr } = await supabase
+          .from("shopping_list")
+          .update({ product_id: newProduct.id })
+          .eq("household_id", user.household_id)
+          .eq("product_id", product.id);
+
+        if (relinkErr) {
+          console.error("[index] relink error:", relinkErr.message);
+        }
+      }
+
+      // Refresh list to reflect changes
+      await fetchList(user.household_id);
+      setCategoryTarget(null);
+    },
+    [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem],
+  );
+
   const handleAcceptSuggestion = useCallback(
     (suggestion: SuggestionItem) => {
       acceptSuggestion(suggestion);
@@ -279,11 +414,46 @@ export default function HomeScreen() {
         emoji: "",
         key: "h-cart",
       });
-      // Sort by name
-      const sorted = [...filteredActive].sort((a, b) =>
-        (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
-      );
-      data.push(...sorted);
+      // Sort cart items based on selected mode
+      if (cartSort === "category") {
+        // Group by category with headers
+        const byCategory = new Map<string, ShoppingItem[]>();
+        for (const item of filteredActive) {
+          const cat = item.product?.category || "ללא קטגוריה";
+          if (!byCategory.has(cat)) byCategory.set(cat, []);
+          byCategory.get(cat)!.push(item);
+        }
+        const sortedCats = [...byCategory.keys()].sort((a, b) =>
+          a.localeCompare(b, "he"),
+        );
+        for (const cat of sortedCats) {
+          const emoji = CATEGORY_EMOJI[cat] ?? "📦";
+          data.push({
+            type: "cart-category",
+            title: cat,
+            emoji,
+            key: `cart-cat-${cat}`,
+          });
+          const catItems = byCategory.get(cat)!;
+          catItems.sort((a, b) =>
+            (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
+          );
+          data.push(...catItems);
+        }
+      } else if (cartSort === "recent") {
+        // Sort by most recently added
+        const sorted = [...filteredActive].sort(
+          (a, b) =>
+            new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
+        );
+        data.push(...sorted);
+      } else {
+        // Sort by name (default)
+        const sorted = [...filteredActive].sort((a, b) =>
+          (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
+        );
+        data.push(...sorted);
+      }
     }
 
     // Divider
@@ -291,37 +461,61 @@ export default function HomeScreen() {
       data.push({ type: "divider", key: "divider-1" });
     }
 
-    // Section 2: All products ("כל המוצרים") — grouped by category
+    // Section 2: All products ("כל המוצרים")
     if (filteredPurchased.length > 0) {
       data.push({ type: "all-products-header", key: "h-all" });
 
       if (showAllProducts) {
-        // Group by category
-        const byCategory = new Map<string, ShoppingItem[]>();
-        for (const item of filteredPurchased) {
-          const cat = item.product?.category || "ללא קטגוריה";
-          if (!byCategory.has(cat)) byCategory.set(cat, []);
-          byCategory.get(cat)!.push(item);
-        }
+        if (allProductsSort === "category") {
+          // Group by category
+          const byCategory = new Map<string, ShoppingItem[]>();
+          for (const item of filteredPurchased) {
+            const cat = item.product?.category || "ללא קטגוריה";
+            if (!byCategory.has(cat)) byCategory.set(cat, []);
+            byCategory.get(cat)!.push(item);
+          }
 
-        // Sort categories alphabetically
-        const sortedCats = [...byCategory.keys()].sort((a, b) =>
-          a.localeCompare(b, "he"),
-        );
-
-        for (const cat of sortedCats) {
-          const emoji = CATEGORY_EMOJI[cat] ?? "📦";
-          data.push({
-            type: "all-product-category",
-            title: cat,
-            emoji,
-            key: `cat-${cat}`,
-          });
-          const catItems = byCategory.get(cat)!;
-          catItems.sort((a, b) =>
-            (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
+          const sortedCats = [...byCategory.keys()].sort((a, b) =>
+            a.localeCompare(b, "he"),
           );
-          for (const item of catItems) {
+
+          for (const cat of sortedCats) {
+            const emoji = CATEGORY_EMOJI[cat] ?? "📦";
+            data.push({
+              type: "all-product-category",
+              title: cat,
+              emoji,
+              key: `cat-${cat}`,
+            });
+            const catItems = byCategory.get(cat)!;
+            catItems.sort((a, b) =>
+              (a.product?.name ?? "").localeCompare(
+                b.product?.name ?? "",
+                "he",
+              ),
+            );
+            for (const item of catItems) {
+              data.push({
+                type: "all-product-item",
+                item,
+                key: `ap-${item.id}`,
+              });
+            }
+          }
+        } else {
+          // Flat sort by name or recent — no category headers
+          const sorted = [...filteredPurchased].sort((a, b) => {
+            if (allProductsSort === "recent") {
+              return (
+                new Date(b.added_at).getTime() - new Date(a.added_at).getTime()
+              );
+            }
+            return (a.product?.name ?? "").localeCompare(
+              b.product?.name ?? "",
+              "he",
+            );
+          });
+          for (const item of sorted) {
             data.push({
               type: "all-product-item",
               item,
@@ -333,7 +527,13 @@ export default function HomeScreen() {
     }
 
     return data;
-  }, [filteredActive, filteredPurchased, showAllProducts]);
+  }, [
+    filteredActive,
+    filteredPurchased,
+    showAllProducts,
+    cartSort,
+    allProductsSort,
+  ]);
 
   // ── Render helpers ─────────────────────────────────────────
   const renderRow = useCallback(
@@ -341,12 +541,42 @@ export default function HomeScreen() {
       // Cart section header
       if ("type" in row && row.type === "header") {
         return (
-          <View style={styles.cartHeader}>
-            <Text style={styles.cartTitle}>{row.title}</Text>
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>
-                {filteredActive.length} פריטים
-              </Text>
+          <View>
+            <View style={styles.cartHeader}>
+              <Text style={styles.cartTitle}>{row.title}</Text>
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>
+                  {filteredActive.length} פריטים
+                </Text>
+              </View>
+            </View>
+            <View style={styles.sortRow}>
+              <Ionicons
+                name="swap-vertical"
+                size={14}
+                color={dark.textMuted}
+                style={{ marginEnd: 6 }}
+              />
+              {CART_SORT_OPTIONS.map((opt) => (
+                <TouchableOpacity
+                  key={opt.key}
+                  style={[
+                    styles.sortChip,
+                    cartSort === opt.key && styles.sortChipActive,
+                  ]}
+                  onPress={() => setCartSort(opt.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.sortChipText,
+                      cartSort === opt.key && styles.sortChipTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         );
@@ -357,19 +587,71 @@ export default function HomeScreen() {
         return <View style={styles.divider} />;
       }
 
+      // Cart category header (when cart sorted by category)
+      if ("type" in row && row.type === "cart-category") {
+        return (
+          <View style={styles.categoryHeader}>
+            <Text style={styles.categoryEmoji}>{row.emoji}</Text>
+            <Text style={styles.categoryTitle}>{row.title}</Text>
+          </View>
+        );
+      }
+
       // "כל המוצרים" header (tappable to collapse)
       if ("type" in row && row.type === "all-products-header") {
         return (
-          <TouchableOpacity
-            style={styles.allProductsHeader}
-            onPress={() => setShowAllProducts((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.allProductsTitle}>כל המוצרים</Text>
-            <Text style={styles.toggleArrow}>
-              {showAllProducts ? "▲" : "▼"}
-            </Text>
-          </TouchableOpacity>
+          <View>
+            <TouchableOpacity
+              style={styles.allProductsHeader}
+              onPress={() => setShowAllProducts((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <Text style={styles.allProductsTitle}>כל המוצרים</Text>
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {filteredPurchased.length} פריטים
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.toggleArrow}>
+                {showAllProducts ? "▲" : "▼"}
+              </Text>
+            </TouchableOpacity>
+            {showAllProducts && (
+              <View style={styles.sortRow}>
+                <Ionicons
+                  name="swap-vertical"
+                  size={14}
+                  color={dark.textMuted}
+                  style={{ marginEnd: 6 }}
+                />
+                {ALL_SORT_OPTIONS.map((opt) => (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[
+                      styles.sortChip,
+                      allProductsSort === opt.key && styles.sortChipActive,
+                    ]}
+                    onPress={() => setAllProductsSort(opt.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.sortChipText,
+                        allProductsSort === opt.key &&
+                          styles.sortChipTextActive,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
         );
       }
 
@@ -439,12 +721,15 @@ export default function HomeScreen() {
     },
     [
       filteredActive.length,
+      filteredPurchased.length,
       showAllProducts,
       activeProductIds,
       checkOffItem,
       handleSwipe,
       router,
       user?.household_id,
+      cartSort,
+      allProductsSort,
     ],
   );
 
@@ -480,7 +765,7 @@ export default function HomeScreen() {
       <View style={styles.headerArea}>
         {/* Title row */}
         <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>הרשימה שלי</Text>
+          <Text style={styles.pageTitle}>רשימת הקניות</Text>
         </View>
 
         {/* Search bar */}
@@ -584,6 +869,20 @@ export default function HomeScreen() {
         onRemove={handleRemove}
         onClose={() => setSnoozeTarget(null)}
       />
+
+      {/* Quick category edit / pick-for-new-product bottom sheet */}
+      <CategorySheet
+        visible={!!categoryTarget || !!pendingAddName}
+        productName={pendingAddName ?? categoryTarget?.product?.name ?? ""}
+        currentCategory={
+          pendingAddName ? null : (categoryTarget?.product?.category ?? null)
+        }
+        onSelect={handleCategoryChange}
+        onClose={() => {
+          setCategoryTarget(null);
+          setPendingAddName(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -609,7 +908,7 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
   },
   titleRow: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
@@ -619,7 +918,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: dark.text,
     letterSpacing: 0.5,
-    textAlign: "right",
   },
 
   // ── Search bar ─────────────────────────────────────────────
@@ -654,13 +952,12 @@ const styles = StyleSheet.create({
     height: "100%",
     fontSize: 14,
     color: dark.inputText,
-    textAlign: "right",
     writingDirection: "rtl",
   },
 
   // ── Cart section header ────────────────────────────────────
   cartHeader: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     justifyContent: "flex-start",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -672,7 +969,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: dark.text,
-    textAlign: "right",
   },
   cartBadge: {
     backgroundColor: dark.surface,
@@ -697,7 +993,7 @@ const styles = StyleSheet.create({
 
   // ── "All Products" section ─────────────────────────────────
   allProductsHeader: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
@@ -708,7 +1004,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: dark.textSecondary,
-    textAlign: "right",
   },
   toggleArrow: {
     fontSize: 12,
@@ -717,7 +1012,7 @@ const styles = StyleSheet.create({
 
   // ── Category header ────────────────────────────────────────
   categoryHeader: {
-    flexDirection: "row-reverse",
+    flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 14,
@@ -731,7 +1026,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: dark.textSecondary,
-    textAlign: "right",
   },
 
   // ── All-product card (dark surface, rounded) ───────────────
@@ -767,6 +1061,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: dark.textSecondary,
     marginTop: 2,
+  },
+  categoryEditRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   addBtn: {
     width: 36,
@@ -835,4 +1133,34 @@ const styles = StyleSheet.create({
   },
 
   // ── FAB ────────────────────────────────────────────────────
+
+  // ── Sort chips ─────────────────────────────────────────────
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+    gap: 6,
+  },
+  sortChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: dark.surface,
+    borderWidth: 1,
+    borderColor: dark.surfaceHighlight,
+  },
+  sortChipActive: {
+    backgroundColor: dark.accent + "22",
+    borderColor: dark.accent,
+  },
+  sortChipText: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: dark.textMuted,
+  },
+  sortChipTextActive: {
+    color: dark.accent,
+    fontWeight: "700",
+  },
 });

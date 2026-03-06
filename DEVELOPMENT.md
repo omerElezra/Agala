@@ -88,17 +88,18 @@ npx expo start --web     # Web browser
 Agala/
 ├── app/                         # Expo Router pages (file-based routing)
 │   ├── _layout.tsx              # Root layout — auth guard, RTL forcing, dark theme
-│   ├── auth.tsx                 # Login / Sign-up screen (inline banners, web-safe)
+│   ├── auth.tsx                 # Login / Sign-up screen (visual mode differentiation, verify password, inline banners)
 │   ├── (tabs)/
 │   │   ├── _layout.tsx          # Tab navigation — 3 tabs, MaterialCommunityIcons exit icon, safe-area tab bar
-│   │   ├── index.tsx            # Shopping list — sort modes, collapsible sections, FAB
+│   │   ├── index.tsx            # Shopping list — sort chips, collapsible sections, CategorySheet, counter badges
 │   │   ├── two.tsx              # Purchase history — date filtering, grouped by date
-│   │   └── settings.tsx         # Settings — profile, household, CSV import
+│   │   └── settings.tsx         # Settings — profile, household, import (file/clipboard/manual)
 │   └── item/
-│       └── [id].tsx             # Item detail — AI/manual buy cycle, category, stats
+│       └── [id].tsx             # Item detail — AI/manual buy cycle, category, stats, clone-on-edit for global products
 ├── src/
 │   ├── components/
 │   │   ├── AddProductSheet.tsx   # Add product modal — search, recent, quantity picker
+│   │   ├── CategorySheet.tsx     # Category picker bottom sheet — 16 categories with emoji, used for new product & edit flows
 │   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback, purchased alignment spacer
 │   │   ├── SnoozeSheet.tsx       # Snooze action sheet
 │   │   └── SuggestionChips.tsx   # AI suggestion chips
@@ -230,12 +231,13 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 | File | Lines | Description |
 |:-----|:------|:-----------|
 | `src/store/shoppingListStore.ts` | ~500 | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging |
-| `app/item/[id].tsx` | ~1257 | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, delete |
-| `app/(tabs)/settings.tsx` | ~622 | Profile editing (refreshProfile), household management, CSV import/parse |
+| `app/item/[id].tsx` | ~1760 | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, clone-on-edit |
+| `app/(tabs)/index.tsx` | ~1170 | Main list: sort chips (name/category/recent), CategorySheet, counter badges, collapsible sections |
+| `app/(tabs)/settings.tsx` | ~650 | Profile editing (refreshProfile), household management, import (file/clipboard/manual) |
 | `src/components/AddProductSheet.tsx` | ~580 | Product search, recent products, autofill recommendations, quantity picker |
 | `app/(tabs)/two.tsx` | ~567 | Purchase history — compact layout, date filtering, delete transactions |
-| `app/(tabs)/index.tsx` | ~495 | Main list: sort modes, collapsible purchased, suggestions, FAB |
 | `src/utils/categoryDetector.ts` | ~400 | 16 Israeli supermarket categories, 400+ Hebrew keywords |
+| `src/components/CategorySheet.tsx` | ~180 | Category picker bottom sheet — 16 categories with emoji, current selection highlight |
 | `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate, swipe, qty controls, purchased alignment spacer |
 | `constants/theme.ts` | ~66 | Lavender-blue + teal palette, all semantic color tokens |
 

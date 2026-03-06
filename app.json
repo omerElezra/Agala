@@ -14,7 +14,11 @@
       "backgroundColor": "#0F0F1A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "he",
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -34,6 +38,9 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+    "locales": {
+      "he": {}
+    },
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker"
@@ -42,6 +49,8 @@
       "typedRoutes": true
     },
     "extra": {
+      "supportsRTL": true,
+      "forcesRTL": true,
       "router": {},
       "eas": {
         "projectId": "05516c15-ba53-47db-bb78-83bc343b41c2"
