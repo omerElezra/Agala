@@ -1,4 +1,4 @@
-name: CI/CD
+name: Agala CI/CD
 
 on:
   pull_request:
@@ -135,10 +135,17 @@ jobs:
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: eas build --platform android --profile production --non-interactive
 
+      - name: Write Google Service Account key
+        if: env.GOOGLE_SERVICE_ACCOUNT_KEY != ''
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: echo "$GOOGLE_SERVICE_ACCOUNT_KEY" > ./google-service-account-key.json
+
       - name: Submit to Google Play (internal track)
-        continue-on-error: true
+        if: env.GOOGLE_SERVICE_ACCOUNT_KEY != ''
         env:
           EAS_NO_VCS: "1"
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
         run: eas submit --platform android --profile production --latest --non-interactive
 
   release:
@@ -186,3 +193,58 @@ jobs:
           tag_name: ${{ needs.version.outputs.tag }}
           name: "עגלה ${{ needs.version.outputs.number }}"
           generate_release_notes: true
+
+      - name: Send release notification email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_FROM }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: ${{ secrets.EMAIL_TO }}
+          from: "עגלה CI/CD <${{ secrets.EMAIL_FROM }}>"
+          subject: "🛒 עגלה ${{ needs.version.outputs.number }} — גרסה חדשה זמינה לבדיקה!"
+          html_body: |
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #0f0f1a; color: #e0e0f0; padding: 32px; border-radius: 12px;">
+              <h1 style="color: #8b9fe8; margin-bottom: 4px;">🛒 עגלה — גרסה ${{ needs.version.outputs.number }}</h1>
+              <p style="color: #888; margin-top: 0;">עודכנה בהצלחה ● ${{ github.event.head_commit.timestamp }}</p>
+
+              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+
+              <h2 style="color: #e0e0f0;">🎉 מה חדש בגרסה הזו?</h2>
+              <p style="color: #c0c0d8; line-height: 1.7;">
+                הגרסה החדשה של עגלה כוללת שיפורים משמעותיים בממשק המשתמש, תמיכה משופרת ב-RTL,
+                מיון חכם של מוצרים לפי שם / קטגוריה / שונה לאחרונה, בחירת קטגוריה ידנית עבור מוצרים חדשים,
+                ותיקון באג קריטי בשמירת מוצרים גלובליים.
+              </p>
+
+              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+
+              <h2 style="color: #e0e0f0;">📲 איך להתקין?</h2>
+              <p style="color: #c0c0d8; line-height: 1.7;">
+                הגרסה הועלתה ל-<strong>Internal Testing</strong> ב-Google Play.<br/>
+                לחץ על הקישור למטה כדי להצטרף לתוכנית הבדיקות:
+              </p>
+
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="https://play.google.com/store/apps/details?id=com.omerelezra.agala"
+                   style="background: #8b9fe8; color: #0f0f1a; padding: 14px 32px; border-radius: 8px;
+                          text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+                  📥 הורד מ-Google Play
+                </a>
+              </div>
+
+              <p style="color: #c0c0d8; font-size: 13px; line-height: 1.6;">
+                🔗 GitHub Release:
+                <a href="https://github.com/omerElezra/Agala/releases/tag/${{ needs.version.outputs.tag }}"
+                   style="color: #8b9fe8;">
+                  github.com/omerElezra/Agala/releases/${{ needs.version.outputs.tag }}
+                </a>
+              </p>
+
+              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+              <p style="color: #555; font-size: 12px; text-align: center;">
+                נשלח אוטומטית על ידי GitHub Actions · עגלה CI/CD
+              </p>
+            </div>

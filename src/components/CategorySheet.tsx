@@ -1,4 +1,5 @@
 import { dark } from "@/constants/theme";
+import { CATEGORIES } from "@/src/utils/categoryDetector";
 import React from "react";
 import {
     Modal,
@@ -9,25 +10,6 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-
-const CATEGORY_OPTIONS: { name: string; emoji: string }[] = [
-  { name: "פירות וירקות", emoji: "🥬" },
-  { name: "חלב וביצים", emoji: "🥛" },
-  { name: "בשר, עוף ודגים", emoji: "🥩" },
-  { name: "לחם ומאפים", emoji: "🍞" },
-  { name: "שתייה", emoji: "🥤" },
-  { name: "יין ואלכוהול", emoji: "🍷" },
-  { name: "חטיפים, ממתקים ודגנים", emoji: "🍫" },
-  { name: "שימורים, רטבים וממרחים", emoji: "🥫" },
-  { name: "תבלינים, אפייה ושמנים", emoji: "🧂" },
-  { name: "פסטה, אורז וקטניות", emoji: "🍝" },
-  { name: "ניקיון וחד פעמי", emoji: "🧹" },
-  { name: "טיפוח והיגיינה", emoji: "🧴" },
-  { name: "תינוקות", emoji: "🍼" },
-  { name: "קפואים", emoji: "🧊" },
-  { name: "בריאות ואורגני", emoji: "🌿" },
-  { name: "ארוחות מוכנות", emoji: "🥘" },
-];
 
 interface CategorySheetProps {
   visible: boolean;
@@ -64,7 +46,7 @@ export function CategorySheet({
             style={styles.scrollArea}
             showsVerticalScrollIndicator={false}
           >
-            {CATEGORY_OPTIONS.map((cat) => {
+            {CATEGORIES.map((cat) => {
               const isActive = currentCategory === cat.name;
               return (
                 <TouchableOpacity

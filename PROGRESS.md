@@ -212,6 +212,16 @@
 - [x] **categoryDetector keywords expanded** — Added missing vegetables: סלק, עלי סלק, חוביזה, עולש, עלי חרדל, ג'רגיר, פול, במיה, חלבלוב, לוביה
 - [x] **Settings placeholder color** — Added `placeholderTextColor={dark.placeholder}` to the "הדביקו קוד משק בית" TextInput in settings
 
+### 5s. Category Consolidation & CI Enhancements (2026-03-06)
+
+- [x] **Single source of truth for categories** — Added `CATEGORY_EMOJIS` (Record<string, string>) and `CATEGORIES` ({name, emoji}[]) exports to `src/utils/categoryDetector.ts`. All category data (names, emojis, legacy fallbacks) now lives in one file
+- [x] **CategorySheet consolidated** — `src/components/CategorySheet.tsx` now imports `CATEGORIES` from categoryDetector instead of maintaining a hardcoded local `CATEGORY_OPTIONS` array
+- [x] **item/[id].tsx consolidated** — Category picker in item detail screen now uses `CATEGORIES` import (with emoji display) instead of plain `CATEGORY_NAMES`
+- [x] **index.tsx consolidated** — Removed 35-line hardcoded `CATEGORY_EMOJI` mapping from main screen; now imports shared `CATEGORY_EMOJIS` from categoryDetector
+- [x] **Legacy emoji fallbacks** — `CATEGORY_EMOJIS` includes legacy category names (e.g. "בשר ועוף", "מוצרי חלב וביצים") so existing products with old category names still render correct emojis
+- [x] **CI: Google Service Account key** — Added "Write Google Service Account key" step to CI workflow that writes `secrets.GOOGLE_SERVICE_ACCOUNT_KEY` to `./google-service-account-key.json` before `eas submit`
+- [x] **CI: Hebrew email notification** — Added `dawidd6/action-send-mail@v3` step to release job that sends a Hebrew HTML email with build status, version, and Play Store link on successful release
+
 ---
 
 ## Next Steps

@@ -45,10 +45,11 @@
   - **Verify password**: Sign-up mode includes password confirmation field with validation. ✅
   - **Placeholder fix**: Password placeholder no longer disappears on mode toggle (key-based remount). ✅
 
-- [x] **Category Selection Sheet** ✅ Implemented (Step 5r)
+- [x] **Category Selection Sheet** ✅ Implemented (Step 5r + 5s)
   - **CategorySheet component**: Bottom sheet with 16 categories (emoji + name), highlighting current selection. ✅
   - **New product flow**: When category can't be auto-detected, user picks category before creation. ✅
   - **Category detector expanded**: Added 10+ missing Hebrew vegetable keywords. ✅
+  - **Single source of truth**: All category data (names, emojis, legacy mappings) consolidated into `categoryDetector.ts` exports (`CATEGORY_EMOJIS`, `CATEGORIES`). No more hardcoded duplicates across components. ✅
 
 - [x] **Product Save Bug Fix (Clone-on-Edit)** ✅ Implemented (Step 5r)
   - **RLS-safe editing**: Global products are cloned as custom products when edited, preventing silent RLS failures. ✅
