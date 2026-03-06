@@ -112,7 +112,7 @@ Agala/
 │   ├── types/
 │   │   └── database.ts          # Auto-generated Supabase DB types
 │   └── utils/
-│       └── categoryDetector.ts   # Hebrew category detection (400+ keywords, 16 Israeli supermarket categories)
+│       └── categoryDetector.ts   # Hebrew category detection (400+ keywords, 16 categories, CATEGORY_EMOJIS + CATEGORIES exports)
 ├── constants/
 │   ├── theme.ts                 # Dark theme — 30+ semantic color tokens (lavender-blue + teal palette)
 │   └── Colors.ts                # Legacy color constants
@@ -236,8 +236,8 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 | `app/(tabs)/settings.tsx` | ~650 | Profile editing (refreshProfile), household management, import (file/clipboard/manual) |
 | `src/components/AddProductSheet.tsx` | ~580 | Product search, recent products, autofill recommendations, quantity picker |
 | `app/(tabs)/two.tsx` | ~567 | Purchase history — compact layout, date filtering, delete transactions |
-| `src/utils/categoryDetector.ts` | ~400 | 16 Israeli supermarket categories, 400+ Hebrew keywords |
-| `src/components/CategorySheet.tsx` | ~180 | Category picker bottom sheet — 16 categories with emoji, current selection highlight |
+| `src/utils/categoryDetector.ts` | ~1000+ | 16 Israeli supermarket categories, 400+ Hebrew keywords, `CATEGORY_EMOJIS` + `CATEGORIES` single-source exports |
+| `src/components/CategorySheet.tsx` | ~170 | Category picker bottom sheet — imports `CATEGORIES` from categoryDetector, current selection highlight |
 | `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate, swipe, qty controls, purchased alignment spacer |
 | `constants/theme.ts` | ~66 | Lavender-blue + teal palette, all semantic color tokens |
 
@@ -327,6 +327,8 @@ Push to main (or manual dispatch)
   ├─► version ─► auto-increment patch (or use manual input)
   ├─► build ──► update app version → EAS Build (Android preview)
   └─► release ► commit version bump → git tag → GitHub Release
+              ► write service account key → EAS Submit to Google Play
+              ► send Hebrew HTML email notification
 ```
 
 ### Version Management
@@ -368,6 +370,10 @@ Add these in GitHub → Settings → Secrets → Actions:
 | Secret | Description |
 |:-------|:-----------|
 | `EXPO_TOKEN` | EAS access token ([expo.dev/accounts/settings](https://expo.dev/accounts/settings)) |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Google Play API service account JSON key (for `eas submit`) |
+| `EMAIL_FROM` | Gmail address for release notification emails |
+| `EMAIL_PASSWORD` | Gmail App Password for SMTP authentication |
+| `EMAIL_TO` | Recipient email for release notifications |
 
 ---
 
