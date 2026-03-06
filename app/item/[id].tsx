@@ -4,7 +4,7 @@ import { supabase } from "@/src/lib/supabase";
 import { useShoppingListStore } from "@/src/store/shoppingListStore";
 import type { Database } from "@/src/types/database";
 import {
-  CATEGORY_NAMES,
+  CATEGORIES,
   getSmartDefaultDays,
 } from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
@@ -849,22 +849,22 @@ export default function ItemDetailScreen() {
                     ללא
                   </Text>
                 </TouchableOpacity>
-                {CATEGORY_NAMES.map((cat) => (
+                {CATEGORIES.map(({ name, emoji }) => (
                   <TouchableOpacity
-                    key={cat}
+                    key={name}
                     style={[
                       styles.categoryChip,
-                      editCategory === cat && styles.categoryChipActive,
+                      editCategory === name && styles.categoryChipActive,
                     ]}
-                    onPress={() => setEditCategory(cat)}
+                    onPress={() => setEditCategory(name)}
                   >
                     <Text
                       style={[
                         styles.categoryChipText,
-                        editCategory === cat && styles.categoryChipTextActive,
+                        editCategory === name && styles.categoryChipTextActive,
                       ]}
                     >
-                      {cat}
+                      {emoji} {name}
                     </Text>
                   </TouchableOpacity>
                 ))}

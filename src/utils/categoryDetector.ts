@@ -316,6 +316,50 @@ const CATEGORY_KEYWORDS: CategoryMap = {
 /** All available category names */
 export const CATEGORY_NAMES = Object.keys(CATEGORY_KEYWORDS);
 
+/** Category → emoji mapping (single source of truth) */
+export const CATEGORY_EMOJIS: Record<string, string> = {
+  'פירות וירקות': '🥬',
+  'חלב וביצים': '🥛',
+  'בשר, עוף ודגים': '🥩',
+  'לחם ומאפים': '🍞',
+  'שתייה': '🥤',
+  'יין ואלכוהול': '🍷',
+  'חטיפים, ממתקים ודגנים': '🍫',
+  'שימורים, רטבים וממרחים': '🥫',
+  'תבלינים, אפייה ושמנים': '🧂',
+  'פסטה, אורז וקטניות': '🍝',
+  'ניקיון וחד פעמי': '🧹',
+  'טיפוח והיגיינה': '🧴',
+  'תינוקות': '🍼',
+  'קפואים': '🧊',
+  'בריאות ואורגני': '🌿',
+  'ארוחות מוכנות': '🥘',
+  'ללא קטגוריה': '📦',
+  // Legacy fallbacks
+  'מוצרי חלב וביצים': '🥛',
+  'בשר ועוף': '🍗',
+  'דגים ופירות ים': '🐟',
+  'משקאות': '🥤',
+  'חטיפים וממתקים': '🍫',
+  'שימורים ורטבים': '🥫',
+  'תבלינים ושמנים': '🧂',
+  'דגנים, אורז ופסטה': '🍚',
+  'מוצרי ניקיון': '🧹',
+  'טיפוח אישי': '🧴',
+  'מוצרים לתינוקות וילדים': '🍼',
+  'מזון קפוא': '🧊',
+  'מזון בריאות ואורגני': '🌿',
+  'מזון מוכן וארוחות': '🥘',
+  'ממתקים ואפייה': '🎂',
+};
+
+/** Structured category list for UI pickers */
+export const CATEGORIES: { name: string; emoji: string }[] =
+  CATEGORY_NAMES.map((name) => ({
+    name,
+    emoji: CATEGORY_EMOJIS[name] ?? '🛒',
+  }));
+
 /**
  * Recommended default buy-cycle days per category.
  * Based on typical Israeli household consumption patterns.

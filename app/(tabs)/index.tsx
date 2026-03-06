@@ -10,7 +10,7 @@ import {
   type ShoppingItem,
   type SuggestionItem,
 } from "@/src/store/shoppingListStore";
-import { detectCategory } from "@/src/utils/categoryDetector";
+import { CATEGORY_EMOJIS, detectCategory } from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -25,43 +25,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// ── Category → emoji mapping ─────────────────────────────────
-const CATEGORY_EMOJI: Record<string, string> = {
-  "פירות וירקות": "🥬",
-  "חלב וביצים": "🥛",
-  "בשר, עוף ודגים": "🥩",
-  "לחם ומאפים": "🍞",
-  שתייה: "🥤",
-  "יין ואלכוהול": "🍷",
-  "חטיפים, ממתקים ודגנים": "🍫",
-  "שימורים, רטבים וממרחים": "🥫",
-  "תבלינים, אפייה ושמנים": "🧂",
-  "פסטה, אורז וקטניות": "🍝",
-  "ניקיון וחד פעמי": "🧹",
-  "טיפוח והיגיינה": "🧴",
-  תינוקות: "🍼",
-  קפואים: "🧊",
-  "בריאות ואורגני": "🌿",
-  "ארוחות מוכנות": "🥘",
-  "ללא קטגוריה": "📦",
-  // Legacy fallbacks
-  "מוצרי חלב וביצים": "🥛",
-  "בשר ועוף": "🍗",
-  "דגים ופירות ים": "🐟",
-  משקאות: "🥤",
-  "חטיפים וממתקים": "🍫",
-  "שימורים ורטבים": "🥫",
-  "תבלינים ושמנים": "🧂",
-  "דגנים, אורז ופסטה": "🍚",
-  "מוצרי ניקיון": "🧹",
-  "טיפוח אישי": "🧴",
-  "מוצרים לתינוקות וילדים": "🍼",
-  "מזון קפוא": "🧊",
-  "מזון בריאות ואורגני": "🌿",
-  "מזון מוכן וארוחות": "🥘",
-  "ממתקים ואפייה": "🎂",
-};
 
 type CartSortMode = "name" | "category" | "recent";
 type AllProductsSortMode = "name" | "category" | "recent";
@@ -427,7 +390,7 @@ export default function HomeScreen() {
           a.localeCompare(b, "he"),
         );
         for (const cat of sortedCats) {
-          const emoji = CATEGORY_EMOJI[cat] ?? "📦";
+          const emoji = CATEGORY_EMOJIS[cat] ?? "📦";
           data.push({
             type: "cart-category",
             title: cat,
@@ -480,7 +443,7 @@ export default function HomeScreen() {
           );
 
           for (const cat of sortedCats) {
-            const emoji = CATEGORY_EMOJI[cat] ?? "📦";
+            const emoji = CATEGORY_EMOJIS[cat] ?? "📦";
             data.push({
               type: "all-product-category",
               title: cat,
