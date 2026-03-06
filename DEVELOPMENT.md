@@ -7,16 +7,16 @@
 
 ## Tech Stack
 
-| Layer | Technology |
-|:------|:-----------|
-| **Framework** | [Expo SDK 54](https://expo.dev) + [React Native 0.81](https://reactnative.dev) |
-| **Navigation** | [expo-router v6](https://docs.expo.dev/router/introduction/) (file-based routing) |
-| **State** | [Zustand v5](https://zustand-demo.pmnd.rs/) |
-| **Backend / DB** | [Supabase](https://supabase.com) (PostgreSQL + Auth + Realtime + RLS) |
-| **Predictions** | Supabase Edge Functions (Deno) |
-| **Language** | [TypeScript 5.9](https://typescriptlang.org) |
-| **Build / CI** | [EAS CLI](https://docs.expo.dev/build/introduction/) + [GitHub Actions](https://github.com/features/actions) |
-| **OTA Updates** | [expo-updates](https://docs.expo.dev/versions/latest/sdk/updates/) (RTL first-launch reload) |
+| Layer            | Technology                                                                                                   |
+| :--------------- | :----------------------------------------------------------------------------------------------------------- |
+| **Framework**    | [Expo SDK 54](https://expo.dev) + [React Native 0.81](https://reactnative.dev)                               |
+| **Navigation**   | [expo-router v6](https://docs.expo.dev/router/introduction/) (file-based routing)                            |
+| **State**        | [Zustand v5](https://zustand-demo.pmnd.rs/)                                                                  |
+| **Backend / DB** | [Supabase](https://supabase.com) (PostgreSQL + Auth + Realtime + RLS)                                        |
+| **Predictions**  | Supabase Edge Functions (Deno)                                                                               |
+| **Language**     | [TypeScript 5.9](https://typescriptlang.org)                                                                 |
+| **Build / CI**   | [EAS CLI](https://docs.expo.dev/build/introduction/) + [GitHub Actions](https://github.com/features/actions) |
+| **OTA Updates**  | [expo-updates](https://docs.expo.dev/versions/latest/sdk/updates/) (RTL first-launch reload)                 |
 
 ---
 
@@ -72,12 +72,12 @@ npx expo start --web     # Web browser
 
 ## Available Scripts
 
-| Command | Description |
-|:--------|:-----------|
-| `npm start` | Start Expo dev server |
-| `npm run ios` | Start on iOS Simulator |
-| `npm run android` | Start on Android Emulator |
-| `npm run web` | Start in web browser |
+| Command             | Description                               |
+| :------------------ | :---------------------------------------- |
+| `npm start`         | Start Expo dev server                     |
+| `npm run ios`       | Start on iOS Simulator                    |
+| `npm run android`   | Start on Android Emulator                 |
+| `npm run web`       | Start in web browser                      |
 | `npm run typecheck` | TypeScript type-checking (`tsc --noEmit`) |
 
 ---
@@ -139,25 +139,25 @@ Agala/
 
 ## Database Schema
 
-| Table | Purpose |
-|:------|:--------|
-| `users` | User profiles (id, email, display_name, household_id) |
-| `households` | Household groups for shared lists |
-| `products` | Product catalog (name, category, is_custom) |
-| `shopping_list` | Active list items (status: `active` / `purchased` / `snoozed`) |
-| `purchase_history` | Immutable transaction log — every purchase event with timestamp |
-| `household_inventory_rules` | AI predictions (ema_days, confidence_score, auto_add_status) |
+| Table                       | Purpose                                                         |
+| :-------------------------- | :-------------------------------------------------------------- |
+| `users`                     | User profiles (id, email, display_name, household_id)           |
+| `households`                | Household groups for shared lists                               |
+| `products`                  | Product catalog (name, category, is_custom)                     |
+| `shopping_list`             | Active list items (status: `active` / `purchased` / `snoozed`)  |
+| `purchase_history`          | Immutable transaction log — every purchase event with timestamp |
+| `household_inventory_rules` | AI predictions (ema_days, confidence_score, auto_add_status)    |
 
 **Row Level Security (RLS)** is enabled — users can only access data belonging to their household.
 
 ### Key Fields — `household_inventory_rules`
 
-| Field | Type | Description |
-|:------|:-----|:-----------|
-| `ema_days` | `float` | Predicted buy cycle in days (EMA-calculated or manually set) |
-| `confidence_score` | `int` | 0–100 prediction confidence |
-| `auto_add_status` | `enum` | `auto_add` / `suggest_only` / `manual_only` |
-| `last_purchased_at` | `timestamp` | Used to compute next buy date |
+| Field               | Type        | Description                                                  |
+| :------------------ | :---------- | :----------------------------------------------------------- |
+| `ema_days`          | `float`     | Predicted buy cycle in days (EMA-calculated or manually set) |
+| `confidence_score`  | `int`       | 0–100 prediction confidence                                  |
+| `auto_add_status`   | `enum`      | `auto_add` / `suggest_only` / `manual_only`                  |
+| `last_purchased_at` | `timestamp` | Used to compute next buy date                                |
 
 ---
 
@@ -191,28 +191,35 @@ EMA implementation is in `app/item/[id].tsx` (inline) and also in `ExternalFiles
 ## Key Architecture Decisions
 
 ### Optimistic Updates
+
 `addItem()` in `shoppingListStore.ts` returns synchronously with a `temp-*` ID. The real DB insert happens in a fire-and-forget async block. The temp ID is replaced with the real DB ID once the insert completes.
 
 ### Instant Purchases
+
 `checkOffItem()` immediately moves the item to purchased status and inserts a record into `purchase_history`. No undo delay — users can delete history records directly from the history tab if needed.
 
 ### Duplicate Prevention
+
 - **Local check**: `items.some(i => i.product_id === productId && i.status === 'active')`
 - **DB check**: async query after local check to catch cross-device duplicates
 - **Realtime dedup**: `subscribeRealtime` INSERT handler skips items already in local state
 
 ### Web Compatibility
-| Problem | Solution |
-|:--------|:---------|
-| `Alert.alert()` is no-op on web | Inline banner components + `window.confirm()` |
+
+| Problem                                                        | Solution                                           |
+| :------------------------------------------------------------- | :------------------------------------------------- |
+| `Alert.alert()` is no-op on web                                | Inline banner components + `window.confirm()`      |
 | `@react-native-community/datetimepicker` doesn't render on web | Web-specific Modal with HTML `<input type="date">` |
-| `Clipboard` API differences | `expo-clipboard` with web fallback |
+| `Clipboard` API differences                                    | `expo-clipboard` with web fallback                 |
 
 ### Fallback Profile Creation
+
 If `03_auth_trigger.sql` wasn't applied, `useAuth.ts` → `fetchOrCreateProfile()` auto-creates a household + user profile on first login.
 
 ### RTL-First
+
 The app is RTL-first via `I18nManager.forceRTL(true)` in the root layout. This means React Native's layout engine **automatically** handles RTL:
+
 - `flexDirection: 'row'` renders right-to-left
 - `marginStart`/`marginEnd` map to the correct physical sides
 - Text naturally aligns to the right
@@ -222,24 +229,25 @@ The app is RTL-first via `I18nManager.forceRTL(true)` in the root layout. This m
 On first install, `I18nManager.isRTL` may still be `false` until a reload occurs. The app uses `expo-updates` → `Updates.reloadAsync()` to automatically reload once when RTL is not yet active.
 
 ### Theme System
+
 All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors in components. The theme has 30+ semantic tokens organized by category (backgrounds, text, borders, accent, interactive, chips, inputs, swipe).
 
 ---
 
 ## Key Files Reference
 
-| File | Lines | Description |
-|:-----|:------|:-----------|
-| `src/store/shoppingListStore.ts` | ~500 | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging |
-| `app/item/[id].tsx` | ~1760 | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, clone-on-edit |
-| `app/(tabs)/index.tsx` | ~1170 | Main list: sort chips (name/category/recent), CategorySheet, counter badges, collapsible sections |
-| `app/(tabs)/settings.tsx` | ~650 | Profile editing (refreshProfile), household management, import (file/clipboard/manual) |
-| `src/components/AddProductSheet.tsx` | ~580 | Product search, recent products, autofill recommendations, quantity picker |
-| `app/(tabs)/two.tsx` | ~567 | Purchase history — compact layout, date filtering, delete transactions |
-| `src/utils/categoryDetector.ts` | ~1000+ | 16 Israeli supermarket categories, 400+ Hebrew keywords, `CATEGORY_EMOJIS` + `CATEGORIES` single-source exports |
-| `src/components/CategorySheet.tsx` | ~170 | Category picker bottom sheet — imports `CATEGORIES` from categoryDetector, current selection highlight |
-| `src/components/ShoppingListItem.tsx` | ~355 | List row: animated check-off/reactivate, swipe, qty controls, purchased alignment spacer |
-| `constants/theme.ts` | ~66 | Lavender-blue + teal palette, all semantic color tokens |
+| File                                  | Lines  | Description                                                                                                     |
+| :------------------------------------ | :----- | :-------------------------------------------------------------------------------------------------------------- |
+| `src/store/shoppingListStore.ts`      | ~500   | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging                             |
+| `app/item/[id].tsx`                   | ~1760  | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, clone-on-edit                      |
+| `app/(tabs)/index.tsx`                | ~1170  | Main list: sort chips (name/category/recent), CategorySheet, counter badges, collapsible sections               |
+| `app/(tabs)/settings.tsx`             | ~650   | Profile editing (refreshProfile), household management, import (file/clipboard/manual)                          |
+| `src/components/AddProductSheet.tsx`  | ~580   | Product search, recent products, autofill recommendations, quantity picker                                      |
+| `app/(tabs)/two.tsx`                  | ~567   | Purchase history — compact layout, date filtering, delete transactions                                          |
+| `src/utils/categoryDetector.ts`       | ~1000+ | 16 Israeli supermarket categories, 400+ Hebrew keywords, `CATEGORY_EMOJIS` + `CATEGORIES` single-source exports |
+| `src/components/CategorySheet.tsx`    | ~170   | Category picker bottom sheet — imports `CATEGORIES` from categoryDetector, current selection highlight          |
+| `src/components/ShoppingListItem.tsx` | ~355   | List row: animated check-off/reactivate, swipe, qty controls, purchased alignment spacer                        |
+| `constants/theme.ts`                  | ~66    | Lavender-blue + teal palette, all semantic color tokens                                                         |
 
 ---
 
@@ -262,19 +270,19 @@ supabase functions deploy nightly-prediction --no-verify-jwt
 
 ### EAS Build Profiles
 
-| Profile | Platform | Output | Use |
-|:--------|:---------|:-------|:----|
-| `preview` | Android | APK | Testing on physical devices |
-| `production` | Android | AAB | Google Play submission |
+| Profile      | Platform | Output | Use                         |
+| :----------- | :------- | :----- | :-------------------------- |
+| `preview`    | Android  | APK    | Testing on physical devices |
+| `production` | Android  | AAB    | Google Play submission      |
 
 ### Environment Variables (EAS)
 
 Set via `eas env:create` for both `preview` and `production` environments:
 
-| Variable | Visibility |
-|:---------|:-----------|
-| `EXPO_PUBLIC_SUPABASE_URL` | plaintext |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | sensitive |
+| Variable                        | Visibility |
+| :------------------------------ | :--------- |
+| `EXPO_PUBLIC_SUPABASE_URL`      | plaintext  |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | sensitive  |
 
 ### Build Commands
 
@@ -294,12 +302,12 @@ eas submit --platform android
 
 ### Asset Guidelines
 
-| Asset | Size | Notes |
-|:------|:-----|:------|
-| `icon.png` | 1024x1024 | App icon (iOS + Android fallback) |
+| Asset               | Size      | Notes                                                                       |
+| :------------------ | :-------- | :-------------------------------------------------------------------------- |
+| `icon.png`          | 1024x1024 | App icon (iOS + Android fallback)                                           |
 | `adaptive-icon.png` | 1024x1024 | Android adaptive icon foreground — logo at 63% centered on `#0F0F1A` canvas |
-| `splash-icon.png` | 1284x2778 | Splash screen — logo at ~35% of width, centered on `#0F0F1A` canvas |
-| `favicon.png` | 48x48 | Web favicon |
+| `splash-icon.png`   | 1284x2778 | Splash screen — logo at ~35% of width, centered on `#0F0F1A` canvas         |
+| `favicon.png`       | 48x48     | Web favicon                                                                 |
 
 ---
 
@@ -309,10 +317,10 @@ The project uses a unified GitHub Actions workflow ([`.github/workflows/cicd.yml
 
 ### Workflow Triggers
 
-| Trigger | What runs |
-|:--------|:----------|
-| **Pull Request → main** | Quality checks only (typecheck, expo-doctor) |
-| **Push to main** (merge) | Quality → Version → EAS Build → GitHub Release |
+| Trigger                          | What runs                                        |
+| :------------------------------- | :----------------------------------------------- |
+| **Pull Request → main**          | Quality checks only (typecheck, expo-doctor)     |
+| **Push to main** (merge)         | Quality → Version → EAS Build → GitHub Release   |
 | **Manual dispatch** (Actions UI) | Same as push, but you specify the version number |
 
 ### Pipeline Flow
@@ -335,12 +343,12 @@ Push to main (or manual dispatch)
 
 The app version is **automatically managed** by CI and stays in sync across all layers:
 
-| Location | Example | Managed by |
-|:---------|:--------|:-----------|
-| `app.json` → `expo.version` | `1.2.3` | CI (committed back to main) |
-| `package.json` → `version` | `1.2.3` | CI (committed back to main) |
-| Git tag | `v1.2.3` | CI (created on release) |
-| Android `versionCode` | `14` | EAS remote auto-increment |
+| Location                    | Example  | Managed by                  |
+| :-------------------------- | :------- | :-------------------------- |
+| `app.json` → `expo.version` | `1.2.3`  | CI (committed back to main) |
+| `package.json` → `version`  | `1.2.3`  | CI (committed back to main) |
+| Git tag                     | `v1.2.3` | CI (created on release)     |
+| Android `versionCode`       | `14`     | EAS remote auto-increment   |
 
 **Auto-increment (default):** On every push to main, the patch version bumps automatically — `v1.0.0` → `v1.0.1` → `v1.0.2`.
 
@@ -352,14 +360,14 @@ The app version is **automatically managed** by CI and stays in sync across all 
 
 GitHub auto-generates release notes from merged PRs. PRs are categorized by labels in [`.github/release.yml`](.github/release.yml):
 
-| Label | Category |
-|:------|:---------|
-| `feature`, `enhancement` | ✨ New Features |
-| `bug`, `fix` | 🐛 Bug Fixes |
-| `ui`, `design` | 🎨 UI / Design |
-| `ai`, `prediction` | 🧠 AI / Predictions |
-| `chore`, `ci`, `dependencies` | ⚙️ Maintenance |
-| `docs` | 📝 Documentation |
+| Label                         | Category            |
+| :---------------------------- | :------------------ |
+| `feature`, `enhancement`      | ✨ New Features     |
+| `bug`, `fix`                  | 🐛 Bug Fixes        |
+| `ui`, `design`                | 🎨 UI / Design      |
+| `ai`, `prediction`            | 🧠 AI / Predictions |
+| `chore`, `ci`, `dependencies` | ⚙️ Maintenance      |
+| `docs`                        | 📝 Documentation    |
 
 PRs labeled `skip-changelog` and bot commits are excluded.
 
@@ -367,13 +375,13 @@ PRs labeled `skip-changelog` and bot commits are excluded.
 
 Add these in GitHub → Settings → Secrets → Actions:
 
-| Secret | Description |
-|:-------|:-----------|
-| `EXPO_TOKEN` | EAS access token ([expo.dev/accounts/settings](https://expo.dev/accounts/settings)) |
-| `GOOGLE_SERVICE_ACCOUNT_KEY` | Google Play API service account JSON key (for `eas submit`) |
-| `EMAIL_FROM` | Gmail address for release notification emails |
-| `EMAIL_PASSWORD` | Gmail App Password for SMTP authentication |
-| `EMAIL_TO` | Recipient email for release notifications |
+| Secret                       | Description                                                                         |
+| :--------------------------- | :---------------------------------------------------------------------------------- |
+| `EXPO_TOKEN`                 | EAS access token ([expo.dev/accounts/settings](https://expo.dev/accounts/settings)) |
+| `GOOGLE_SERVICE_ACCOUNT_KEY` | Google Play API service account JSON key (for `eas submit`)                         |
+| `EMAIL_FROM`                 | Gmail address for release notification emails                                       |
+| `EMAIL_PASSWORD`             | Gmail App Password for SMTP authentication                                          |
+| `EMAIL_TO`                   | Recipient email for release notifications                                           |
 
 ---
 
