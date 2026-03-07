@@ -1,0 +1,103 @@
+name: Promote to Alpha
+
+on:
+  workflow_run:
+    workflows: ["Agala CI/CD"]
+    types: [completed]
+    branches: [main]
+
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'yes' to promote latest build to alpha"
+        required: true
+        type: string
+
+concurrency: #
+  group: promote-alpha
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: Promote to Alpha Track
+    runs-on: ubuntu-latest
+    # Auto-trigger only if CI/CD succeeded; manual dispatch always runs
+    if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.confirm == 'yes') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Write Google Service Account key
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_ACCOUNT_KEY" ]; then
+            echo "::error::GOOGLE_SERVICE_ACCOUNT_KEY secret is not set"
+            exit 1
+          fi
+          echo "$GOOGLE_SERVICE_ACCOUNT_KEY" > ./google-service-account-key.json
+
+      - name: Submit to Google Play (alpha track)
+        env:
+          EAS_NO_VCS: "1"
+        run: eas submit --platform android --profile alpha --latest --non-interactive
+
+      - name: Send alpha promotion email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_FROM }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          to: ${{ secrets.EMAIL_TO }}
+          from: "עגלה CI/CD <${{ secrets.EMAIL_FROM }}>"
+          subject: "🚀 עגלה — הגרסה קודמה ל-Alpha!"
+          html_body: |
+            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #0f0f1a; color: #e0e0f0; padding: 32px; border-radius: 12px;">
+              <h1 style="color: #8b9fe8; margin-bottom: 4px;">🚀 עגלה — קודמה ל-Alpha</h1>
+              <p style="color: #888; margin-top: 0;">הגרסה האחרונה קודמה בהצלחה לערוץ Alpha ב-Google Play</p>
+
+              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+
+              <h2 style="color: #e0e0f0;">📲 מה זה אומר?</h2>
+              <p style="color: #c0c0d8; line-height: 1.7;">
+                הגרסה עברה בדיקות Internal בהצלחה ועכשיו זמינה לקבוצת הבדיקות Alpha.<br/>
+                הבודקים בקבוצת Alpha יקבלו עדכון אוטומטי דרך Google Play.
+              </p>
+
+              <div style="text-align: center; margin: 24px 0;">
+                <a href="https://play.google.com/store/apps/details?id=com.omerelezra.agala"
+                   style="background: #8b9fe8; color: #0f0f1a; padding: 14px 32px; border-radius: 8px;
+                          text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+                  📥 Google Play
+                </a>
+              </div>
+
+              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+              <p style="color: #555; font-size: 12px; text-align: center;">
+                נשלח אוטומטית על ידי GitHub Actions · עגלה CI/CD
+              </p>
+            </div>
