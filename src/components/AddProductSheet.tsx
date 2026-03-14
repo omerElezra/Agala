@@ -1,12 +1,13 @@
 import { dark } from "@/constants/theme";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    FlatList,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { supabase } from "../lib/supabase";
 import { useShoppingListStore } from "../store/shoppingListStore";
@@ -35,6 +36,7 @@ export function AddProductSheet({
   );
   const [quantity, setQuantity] = useState(1);
   const [existsMessage, setExistsMessage] = useState<string | null>(null);
+  const [addToCart, setAddToCart] = useState(false);
   const addItem = useShoppingListStore((s) => s.addItem);
 
   // ── Fetch recently purchased products ──────────────────────
@@ -100,6 +102,7 @@ export function AddProductSheet({
       householdId,
       quantity,
       selectedProduct,
+      addToCart,
     );
     if (result === "exists") {
       setExistsMessage(`"${selectedProduct.name}" כבר נמצא ברשימה`);
@@ -121,11 +124,9 @@ export function AddProductSheet({
 
     const trimmed = query.trim();
 
-    // 1. Check if an active item with the same product name already exists
+    // 1. Check if an item with this name already exists in any list
     const duplicate = items.find(
-      (i) =>
-        i.status === "active" &&
-        i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
+      (i) => i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
     );
     if (duplicate) {
       setExistsMessage(`"${trimmed}" כבר נמצא ברשימה`);
@@ -186,26 +187,27 @@ export function AddProductSheet({
       householdId,
       quantity,
       productToAdd,
+      addToCart,
     );
     if (result === "exists") {
       setExistsMessage(`"${trimmed}" כבר נמצא ברשימה`);
       return;
     }
     onClose();
-  }, [query, householdId, addItem, onClose, quantity, items]);
+  }, [query, householdId, addItem, onClose, quantity, items, addToCart]);
 
   // Handle selecting a product from recent chips
   const handleRecentChipPress = useCallback(
     (product: ProductRow) => {
       setExistsMessage(null);
-      const result = addItem(product.id, householdId, 1, product);
+      const result = addItem(product.id, householdId, 1, product, addToCart);
       if (result === "exists") {
         setExistsMessage(`"${product.name}" כבר נמצא ברשימה`);
         return;
       }
       onClose();
     },
-    [addItem, householdId, onClose],
+    [addItem, householdId, onClose, addToCart],
   );
 
   // Show recent products only when search is empty
@@ -232,6 +234,17 @@ export function AddProductSheet({
       />
 
       {isSearching && <Text style={styles.searching}>מחפש...</Text>}
+
+      {/* Add to cart toggle */}
+      <View style={styles.toggleRow}>
+        <Text style={styles.toggleLabel}>הוסף לעגלת הקניות</Text>
+        <Switch
+          value={addToCart}
+          onValueChange={setAddToCart}
+          trackColor={{ false: dark.input, true: dark.success }}
+          thumbColor="#fff"
+        />
+      </View>
 
       {/* "Already in cart" message */}
       {existsMessage && (
@@ -264,7 +277,9 @@ export function AddProductSheet({
               style={styles.qtyConfirmBtn}
               onPress={handleConfirmAdd}
             >
-              <Text style={styles.qtyConfirmText}>הוסף לרשימה</Text>
+              <Text style={styles.qtyConfirmText}>
+                {addToCart ? "הוסף לעגלה" : "הוסף לרשימה"}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.qtyCancelBtn}
@@ -393,6 +408,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
     fontWeight: "600",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: dark.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: dark.border,
+  },
+  toggleLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: dark.text,
   },
   existsBanner: {
     backgroundColor: dark.warningBg,
