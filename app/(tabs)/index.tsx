@@ -92,11 +92,9 @@ export default function HomeScreen() {
 
     setIsAddingFromSearch(true);
     try {
-      // Check if already active
+      // Check if already exists in any list (cart or all products)
       const duplicate = items.find(
-        (i) =>
-          i.status === "active" &&
-          i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
+        (i) => i.product?.name?.toLowerCase() === trimmed.toLowerCase(),
       );
       if (duplicate) {
         setIsAddingFromSearch(false);
@@ -157,7 +155,7 @@ export default function HomeScreen() {
         productToAdd = newProduct;
       }
 
-      addItem(productToAdd.id, user.household_id, 1, productToAdd);
+      addItem(productToAdd.id, user.household_id, 1, productToAdd, false);
       setSearchQuery("");
     } catch (err) {
       console.error("[HomeScreen] addFromSearch error:", err);
@@ -283,7 +281,7 @@ export default function HomeScreen() {
           return;
         }
 
-        addItem(newProduct.id, user.household_id, 1, newProduct);
+        addItem(newProduct.id, user.household_id, 1, newProduct, false);
         return;
       }
 

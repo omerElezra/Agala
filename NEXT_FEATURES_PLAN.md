@@ -107,7 +107,7 @@
   - Configure Android App Links + Universal Links (iOS).
   - Recipient taps link → app opens → auto-joins household.
 
-- [ ] **Public Privacy Policy URL (כתובת מדיניות פרטיות)**
+- [x] **Public Privacy Policy URL (כתובת מדיניות פרטיות)** ✅ Implemented
   - Host `PRIVACY_POLICY.md` as a live web page (GitHub Pages / static site).
   - Required by Google Play Console before publishing.
   - Link it from Settings screen and from the Store Listing.

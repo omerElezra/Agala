@@ -1,12 +1,13 @@
-import { create } from 'zustand';
-import { supabase } from '../lib/supabase';
-import type { Database } from '../types/database';
-import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { create } from "zustand";
+import { supabase } from "../lib/supabase";
+import type { Database } from "../types/database";
 
 // ── Types ────────────────────────────────────────────────────
-type ShoppingListRow = Database['public']['Tables']['shopping_list']['Row'];
-type ProductRow = Database['public']['Tables']['products']['Row'];
-type InventoryRuleRow = Database['public']['Tables']['household_inventory_rules']['Row'];
+type ShoppingListRow = Database["public"]["Tables"]["shopping_list"]["Row"];
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
+type InventoryRuleRow =
+  Database["public"]["Tables"]["household_inventory_rules"]["Row"];
 
 /** An item currently on the shopping list (active, purchased, or snoozed). */
 export interface ShoppingItem extends ShoppingListRow {
@@ -58,7 +59,13 @@ interface ShoppingListState {
   snoozeItem: (itemId: string, days: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   reactivateItem: (itemId: string) => void;
-  addItem: (productId: string, householdId: string, quantity?: number, product?: ProductRow | null) => 'added' | 'exists';
+  addItem: (
+    productId: string,
+    householdId: string,
+    quantity?: number,
+    product?: ProductRow | null,
+    toCart?: boolean,
+  ) => "added" | "exists";
   updateQuantity: (itemId: string, newQuantity: number) => Promise<void>;
   acceptSuggestion: (suggestion: SuggestionItem) => Promise<void>;
   flushOfflineQueue: () => Promise<void>;
@@ -79,14 +86,14 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     // 1. Shopping list items (active + purchased + expired-snoozed)
     const { data: listData, error: listError } = await supabase
-      .from('shopping_list')
-      .select('*, product:products(*)')
-      .eq('household_id', householdId)
-      .in('status', ['active', 'snoozed', 'purchased'])
-      .order('added_at', { ascending: false });
+      .from("shopping_list")
+      .select("*, product:products(*)")
+      .eq("household_id", householdId)
+      .in("status", ["active", "snoozed", "purchased"])
+      .order("added_at", { ascending: false });
 
     if (listError) {
-      console.error('[store] fetchList error:', listError.message);
+      console.error("[store] fetchList error:", listError.message);
       set({ isLoading: false });
       return;
     }
@@ -94,20 +101,20 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     // 2. Inventory rules where auto_add_status = 'auto_add'
     //    → so we can label items as "auto-added" in the UI.
     const { data: rulesData } = await supabase
-      .from('household_inventory_rules')
-      .select('product_id')
-      .eq('household_id', householdId)
-      .eq('auto_add_status', 'auto_add');
+      .from("household_inventory_rules")
+      .select("product_id")
+      .eq("household_id", householdId)
+      .eq("auto_add_status", "auto_add");
 
     const autoIds = new Set((rulesData ?? []).map((r) => r.product_id));
 
     // 3. Filter: keep active + purchased + snoozed items whose window expired
     const allItems = (listData ?? []) as ShoppingItem[];
     const activeItems = allItems.filter((item) => {
-      if (item.status === 'snoozed' && item.snooze_until) {
+      if (item.status === "snoozed" && item.snooze_until) {
         return new Date(item.snooze_until) <= new Date();
       }
-      return item.status === 'active' || item.status === 'purchased';
+      return item.status === "active" || item.status === "purchased";
     });
 
     set({
@@ -123,15 +130,15 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
   // ── Fetch suggestions from household_inventory_rules ───────
   fetchSuggestions: async (householdId: string) => {
     const { data, error } = await supabase
-      .from('household_inventory_rules')
-      .select('*, product:products(*)')
-      .eq('household_id', householdId)
-      .eq('auto_add_status', 'suggest_only')
-      .gte('confidence_score', AI_SUGGESTION_CONFIG.confidenceThreshold)
-      .order('confidence_score', { ascending: false });
+      .from("household_inventory_rules")
+      .select("*, product:products(*)")
+      .eq("household_id", householdId)
+      .eq("auto_add_status", "suggest_only")
+      .gte("confidence_score", AI_SUGGESTION_CONFIG.confidenceThreshold)
+      .order("confidence_score", { ascending: false });
 
     if (error || !data) {
-      console.error('[store] fetchSuggestions error:', error?.message);
+      console.error("[store] fetchSuggestions error:", error?.message);
       return;
     }
 
@@ -150,7 +157,9 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
         if (rule.last_purchased_at && rule.ema_days > 0) {
           const lastDate = new Date(rule.last_purchased_at).getTime();
           const nextDate = lastDate + rule.ema_days * 24 * 60 * 60 * 1000;
-          daysUntilNextBuy = Math.ceil((nextDate - now) / (24 * 60 * 60 * 1000));
+          daysUntilNextBuy = Math.ceil(
+            (nextDate - now) / (24 * 60 * 60 * 1000),
+          );
         }
 
         return {
@@ -163,8 +172,12 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       })
       // Sort: urgent items first (overdue/due today), then by descending confidence
       .sort((a, b) => {
-        const aUrgent = a.daysUntilNextBuy !== null && a.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
-        const bUrgent = b.daysUntilNextBuy !== null && b.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
+        const aUrgent =
+          a.daysUntilNextBuy !== null &&
+          a.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
+        const bUrgent =
+          b.daysUntilNextBuy !== null &&
+          b.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
         if (aUrgent && !bUrgent) return -1;
         if (!aUrgent && bUrgent) return 1;
         return b.confidenceScore - a.confidenceScore;
@@ -178,33 +191,35 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     const channel = supabase
       .channel(`shopping_list:${householdId}`)
       .on<ShoppingListRow>(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'shopping_list',
+          event: "*",
+          schema: "public",
+          table: "shopping_list",
           filter: `household_id=eq.${householdId}`,
         },
         async (payload: RealtimePostgresChangesPayload<ShoppingListRow>) => {
           const state = get();
 
-          if (payload.eventType === 'INSERT') {
+          if (payload.eventType === "INSERT") {
             // Skip if we already have this item by id OR by product_id
             if (
               state.items.some(
-                (i) => i.id === payload.new.id || i.product_id === payload.new.product_id,
+                (i) =>
+                  i.id === payload.new.id ||
+                  i.product_id === payload.new.product_id,
               )
             ) {
               return;
             }
 
             const { data } = await supabase
-              .from('shopping_list')
-              .select('*, product:products(*)')
-              .eq('id', payload.new.id)
+              .from("shopping_list")
+              .select("*, product:products(*)")
+              .eq("id", payload.new.id)
               .single();
 
-            if (data && (data as ShoppingItem).status === 'active') {
+            if (data && (data as ShoppingItem).status === "active") {
               // Re-check after async fetch in case state changed
               const current = get();
               if (
@@ -219,27 +234,31 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
             }
           }
 
-          if (payload.eventType === 'UPDATE') {
+          if (payload.eventType === "UPDATE") {
             const updated = payload.new;
 
-            if (updated.status === 'snoozed') {
+            if (updated.status === "snoozed") {
               // Another household member snoozed → remove locally
               set({ items: state.items.filter((i) => i.id !== updated.id) });
-            } else if (updated.status === 'purchased') {
+            } else if (updated.status === "purchased") {
               // Another household member checked off → update status locally
               set({
                 items: state.items.map((i) =>
                   i.id === updated.id
-                    ? { ...i, status: 'purchased' as const, purchased_at: updated.purchased_at }
+                    ? {
+                        ...i,
+                        status: "purchased" as const,
+                        purchased_at: updated.purchased_at,
+                      }
                     : i,
                 ),
               });
-            } else if (updated.status === 'active') {
+            } else if (updated.status === "active") {
               // Un-snooze or re-activation — fetch with product join
               const { data } = await supabase
-                .from('shopping_list')
-                .select('*, product:products(*)')
-                .eq('id', updated.id)
+                .from("shopping_list")
+                .select("*, product:products(*)")
+                .eq("id", updated.id)
                 .single();
 
               if (data) {
@@ -251,7 +270,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
             }
           }
 
-          if (payload.eventType === 'DELETE' && payload.old?.id) {
+          if (payload.eventType === "DELETE" && payload.old?.id) {
             set({ items: state.items.filter((i) => i.id !== payload.old.id) });
           }
         },
@@ -273,7 +292,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     set({
       items: state.items.map((i) =>
         i.id === itemId
-          ? { ...i, status: 'purchased' as const, purchased_at: now }
+          ? { ...i, status: "purchased" as const, purchased_at: now }
           : i,
       ),
     });
@@ -282,20 +301,25 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     (async () => {
       // 1. Update shopping_list status
       const { error } = await supabase
-        .from('shopping_list')
-        .update({ status: 'purchased', purchased_at: now })
-        .eq('id', itemId);
+        .from("shopping_list")
+        .update({ status: "purchased", purchased_at: now })
+        .eq("id", itemId);
 
       if (error) {
-        console.error('[store] purchase sync failed, queuing offline:', error.message);
+        console.error(
+          "[store] purchase sync failed, queuing offline:",
+          error.message,
+        );
         const cur = get();
-        set({ offlineQueue: [...cur.offlineQueue, { itemId, purchasedAt: now }] });
+        set({
+          offlineQueue: [...cur.offlineQueue, { itemId, purchasedAt: now }],
+        });
       }
 
       // 2. Log transaction in purchase_history
       if (item) {
         const { error: histError } = await supabase
-          .from('purchase_history')
+          .from("purchase_history")
           .insert({
             household_id: item.household_id,
             product_id: item.product_id,
@@ -303,7 +327,10 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
             purchased_at: now,
           });
         if (histError) {
-          console.error('[store] purchase_history insert failed:', histError.message);
+          console.error(
+            "[store] purchase_history insert failed:",
+            histError.message,
+          );
         }
       }
     })();
@@ -317,7 +344,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     set({
       items: state.items.map((i) =>
         i.id === itemId
-          ? { ...i, status: 'active' as const, purchased_at: null }
+          ? { ...i, status: "active" as const, purchased_at: null }
           : i,
       ),
     });
@@ -325,19 +352,17 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     // Sync with DB in background
     (async () => {
       const { error } = await supabase
-        .from('shopping_list')
-        .update({ status: 'active', purchased_at: null })
-        .eq('id', itemId);
+        .from("shopping_list")
+        .update({ status: "active", purchased_at: null })
+        .eq("id", itemId);
 
       if (error) {
-        console.error('[store] reactivateItem error:', error.message);
+        console.error("[store] reactivateItem error:", error.message);
         // Revert on failure
         const current = get();
         set({
           items: current.items.map((i) =>
-            i.id === itemId
-              ? { ...i, status: 'purchased' as const }
-              : i,
+            i.id === itemId ? { ...i, status: "purchased" as const } : i,
           ),
         });
       }
@@ -354,9 +379,9 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     set({ items: state.items.filter((i) => i.id !== itemId) });
 
     await supabase
-      .from('shopping_list')
-      .update({ status: 'snoozed', snooze_until: snoozeUntil.toISOString() })
-      .eq('id', itemId);
+      .from("shopping_list")
+      .update({ status: "snoozed", snooze_until: snoozeUntil.toISOString() })
+      .eq("id", itemId);
   },
 
   // ── Remove / delete item (triggers AI confidence penalty) ──
@@ -364,25 +389,34 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     const state = get();
     set({ items: state.items.filter((i) => i.id !== itemId) });
 
-    await supabase.from('shopping_list').delete().eq('id', itemId);
+    await supabase.from("shopping_list").delete().eq("id", itemId);
   },
 
   // ── Add item manually (skip if same product already active) ──
-  addItem: (productId: string, householdId: string, quantity: number = 1, product: ProductRow | null = null): 'added' | 'exists' => {
-    // 1. Check local state — if already active, return 'exists'
+  addItem: (
+    productId: string,
+    householdId: string,
+    quantity: number = 1,
+    product: ProductRow | null = null,
+    toCart: boolean = false,
+  ): "added" | "exists" => {
+    const status = toCart ? "active" : "purchased";
+
+    // 1. Check local state — block if product already exists in any list
     const state = get();
-    if (state.items.some((i) => i.product_id === productId && i.status === 'active')) {
-      return 'exists';
+    const existingItem = state.items.find((i) => i.product_id === productId);
+
+    if (existingItem) {
+      // Special case: adding to cart and item is in all-products → reactivate (move to cart)
+      if (toCart && existingItem.status === "purchased") {
+        get().reactivateItem(existingItem.id);
+        return "added";
+      }
+      // Otherwise it already exists somewhere — no duplicates allowed
+      return "exists";
     }
 
-    // 2. If the product exists as purchased, reactivate it instead of creating duplicate
-    const purchasedItem = state.items.find((i) => i.product_id === productId && i.status === 'purchased');
-    if (purchasedItem) {
-      get().reactivateItem(purchasedItem.id);
-      return 'added';
-    }
-
-    // 2. Optimistic: add a placeholder item immediately (instant UI)
+    // 4. Optimistic: add a placeholder item immediately (instant UI)
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const now = new Date().toISOString();
     const optimisticItem: ShoppingItem = {
@@ -390,9 +424,9 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       household_id: householdId,
       product_id: productId,
       quantity,
-      status: 'active',
+      status,
       added_at: now,
-      purchased_at: null,
+      purchased_at: toCart ? null : now,
       snooze_until: null,
       product,
     };
@@ -401,21 +435,21 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     // 3. Background: check DB + insert (fire-and-forget)
     (async () => {
       try {
-        // Check if another device already added it
+        // Check if another device already added it (any status)
         const { data: dbExisting } = await supabase
-          .from('shopping_list')
-          .select('id')
-          .eq('household_id', householdId)
-          .eq('product_id', productId)
-          .eq('status', 'active')
+          .from("shopping_list")
+          .select("id, status")
+          .eq("household_id", householdId)
+          .eq("product_id", productId)
+          .in("status", ["active", "purchased"])
           .maybeSingle();
 
         if (dbExisting) {
           // Already exists in DB — replace temp item with real one
           const { data: full } = await supabase
-            .from('shopping_list')
-            .select('*, product:products(*)')
-            .eq('id', dbExisting.id)
+            .from("shopping_list")
+            .select("*, product:products(*)")
+            .eq("id", dbExisting.id)
             .single();
 
           const current = get();
@@ -430,18 +464,19 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
         // Insert new row
         const { data, error } = await supabase
-          .from('shopping_list')
+          .from("shopping_list")
           .insert({
             household_id: householdId,
             product_id: productId,
             quantity,
-            status: 'active',
+            status,
+            ...(status === "purchased" ? { purchased_at: now } : {}),
           })
-          .select('*, product:products(*)')
+          .select("*, product:products(*)")
           .single();
 
         if (error) {
-          console.error('[store] addItem error:', error.message);
+          console.error("[store] addItem error:", error.message);
           // Remove optimistic item on failure
           const current = get();
           set({ items: current.items.filter((i) => i.id !== tempId) });
@@ -458,13 +493,13 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
           });
         }
       } catch (err) {
-        console.error('[store] addItem unexpected error:', err);
+        console.error("[store] addItem unexpected error:", err);
         const current = get();
         set({ items: current.items.filter((i) => i.id !== tempId) });
       }
     })();
 
-    return 'added';
+    return "added";
   },
 
   // ── Update quantity on an existing item ─────────────────────
@@ -480,17 +515,24 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     });
 
     const { error } = await supabase
-      .from('shopping_list')
+      .from("shopping_list")
       .update({ quantity: newQuantity })
-      .eq('id', itemId);
+      .eq("id", itemId);
 
     if (error) {
-      console.error('[store] updateQuantity error:', error.message);
+      console.error("[store] updateQuantity error:", error.message);
       // Revert on failure
       const current = get();
       set({
         items: current.items.map((i) =>
-          i.id === itemId ? { ...i, quantity: state.items.find((o) => o.id === itemId)?.quantity ?? newQuantity } : i,
+          i.id === itemId
+            ? {
+                ...i,
+                quantity:
+                  state.items.find((o) => o.id === itemId)?.quantity ??
+                  newQuantity,
+              }
+            : i,
         ),
       });
     }
@@ -503,10 +545,18 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
     if (!householdId) return;
 
     // Optimistic: remove from suggestions
-    set({ suggestions: state.suggestions.filter((s) => s.id !== suggestion.id) });
+    set({
+      suggestions: state.suggestions.filter((s) => s.id !== suggestion.id),
+    });
 
-    // Delegate to addItem (now synchronous + optimistic)
-    get().addItem(suggestion.productId, householdId, 1, suggestion.product);
+    // Delegate to addItem (now synchronous + optimistic) — add to cart since user wants to buy
+    get().addItem(
+      suggestion.productId,
+      householdId,
+      1,
+      suggestion.product,
+      true,
+    );
   },
 
   // ── Flush offline queue ─────────────────────────────────────
@@ -519,9 +569,9 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     for (const action of queue) {
       const { error } = await supabase
-        .from('shopping_list')
-        .update({ status: 'purchased', purchased_at: action.purchasedAt })
-        .eq('id', action.itemId);
+        .from("shopping_list")
+        .update({ status: "purchased", purchased_at: action.purchasedAt })
+        .eq("id", action.itemId);
 
       if (error) {
         const cur = get();
