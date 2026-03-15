@@ -19,7 +19,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./google-service-account-key.json",
-        "track": "production"
+        "track": "internal"
       }
     }
   }
