@@ -42,6 +42,7 @@ export default function SettingsScreen() {
   const [importResult, setImportResult] = useState<string | null>(null);
   const [manualText, setManualText] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const { addItem, fetchList } = useShoppingListStore();
 
   const showBanner = (text: string, type: "success" | "error") => {
@@ -249,6 +250,47 @@ export default function SettingsScreen() {
     setManualText("");
     setShowManualInput(false);
   }, [manualText, handleImport]);
+
+  // ── Check for app update ────────────────────────────────────
+  const handleCheckUpdate = useCallback(async () => {
+    setCheckingUpdate(true);
+    try {
+      const currentVersion = Constants.expoConfig?.version ?? "0.0.0";
+      const res = await fetch(
+        "https://api.github.com/repos/omerElezra/Agala/releases/latest",
+      );
+      if (!res.ok) {
+        showBanner("שגיאה בבדיקת עדכונים", "error");
+        return;
+      }
+      const data = await res.json();
+      const latestVersion = (data.tag_name ?? "").replace(/^v/, "");
+
+      if (!latestVersion) {
+        showBanner("לא ניתן לבדוק עדכונים כרגע", "error");
+        return;
+      }
+
+      if (latestVersion === currentVersion) {
+        showBanner("האפליקציה מעודכנת לגרסה האחרונה ✅", "success");
+      } else {
+        showBanner(`גרסה חדשה זמינה: ${latestVersion}`, "success");
+        const url =
+          Platform.OS === "android"
+            ? "market://details?id=com.omerelezra.agala"
+            : "https://play.google.com/store/apps/details?id=com.omerelezra.agala";
+        await Linking.openURL(url).catch(() =>
+          Linking.openURL(
+            "https://play.google.com/store/apps/details?id=com.omerelezra.agala",
+          ),
+        );
+      }
+    } catch {
+      showBanner("שגיאה בבדיקת עדכונים", "error");
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, []);
 
   if (isLoading || !user) {
     return (
@@ -511,6 +553,23 @@ export default function SettingsScreen() {
               @OmerElezra
             </Text>
           </View>
+
+          {/* Check for update */}
+          <TouchableOpacity
+            style={styles.updateBtn}
+            onPress={handleCheckUpdate}
+            disabled={checkingUpdate}
+            activeOpacity={0.7}
+          >
+            {checkingUpdate ? (
+              <ActivityIndicator size="small" color={dark.accent} />
+            ) : (
+              <Ionicons name="cloud-download-outline" size={20} color={dark.accent} />
+            )}
+            <Text style={styles.updateBtnText}>
+              {checkingUpdate ? "בודק עדכונים..." : "בדוק עדכון חדש"}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Rate App (native in-app review) ────────────────── */}
@@ -826,5 +885,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 10,
     fontWeight: "700",
+  },
+  updateBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 14,
+    paddingVertical: 12,
+    backgroundColor: dark.background,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: dark.accent,
+  },
+  updateBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: dark.accent,
   },
 });
