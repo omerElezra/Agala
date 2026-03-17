@@ -161,7 +161,7 @@ AI prediction state per product per household. Stores EMA (Exponential Moving Av
 | Score Range | Status | Behavior |
 |-------------|---------------|--------------------------------------------|
 | ≥ 85 | `auto_add` | Automatically added to shopping list |
-| 50–84 | `suggest_only`| Shown as suggestion chip in UI |
+| 50–84 | `suggest_only`| Used by recommendation engine |
 | < 50 | `manual_only` | Still learning, no automatic action |
 
 **Foreign Keys:**
@@ -280,12 +280,12 @@ When an active auto-added item is deleted:
 
 ---
 
-### 4. Confidence Bonus — Suggestion Accepted
+### 4. Confidence Bonus — Recommendation Accepted
 
 **Trigger:** `trg_confidence_bonus_on_accept` → AFTER INSERT on `shopping_list`
 **Function:** `handle_suggestion_acceptance()`
 
-When a user manually adds an item that has `auto_add_status = 'suggest_only'`:
+When a user adds an item from the recommendation line that has `auto_add_status = 'suggest_only'`:
 
 - **Bonus:** +15 to `confidence_score`
 - Recalculates `auto_add_status` based on new score

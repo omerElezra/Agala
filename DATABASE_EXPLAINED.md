@@ -31,7 +31,7 @@ Household created (auto)
     │       Nightly Prediction Engine (02:00)
     │               │
     │               ├── confidence ≥ 85 → Auto-add to list
-    │               ├── confidence 50-84 → Show as suggestion
+    │               ├── confidence 50-84 → Show as recommendation
     │               └── confidence < 50 → Keep learning
     │
     └── Real-time sync to all household devices
@@ -151,9 +151,9 @@ Where $Q_{last}$ is the quantity from the most recent purchase. If `ema_days = 7
                            ▼
                     ┌──────────────┐
                     │ suggest_only │  Score 50–84
-                    │ (suggesting) │  Shown as suggestion chip
+                    │ (suggesting) │  Used by recommendation engine
                     └──────┬───────┘
-                           │ User accepts suggestions
+                           │ User accepts recommendations
                            │ Score reaches 85+
                            ▼
                     ┌──────────────┐
@@ -167,7 +167,7 @@ Where $Q_{last}$ is the quantity from the most recent purchase. If `ema_days = 7
                     Score drops → demoted back
 ```
 
-**Real-time sync:** Also published to Supabase Realtime so the client can react to score changes instantly (e.g., a suggestion chip appearing).
+**Real-time sync:** Also published to Supabase Realtime so the client can react to score changes instantly (e.g., a recommendation appearing).
 
 ---
 

@@ -67,7 +67,7 @@
 | `products`                  | Product catalog (global + custom) | On new product add        | Search, list display               |
 | `shopping_list`             | Active cart + all items           | Every add/purchase/snooze | Main screen, realtime              |
 | `purchase_history`          | Immutable purchase ledger         | Every purchase (checkOff) | Nightly prediction, item detail    |
-| `household_inventory_rules` | AI prediction state per product   | On purchase + nightly     | Recommendations, dots, suggestions |
+| `household_inventory_rules` | AI prediction state per product   | On purchase + nightly     | Recommendations, depletion labels |
 
 ---
 
@@ -383,7 +383,7 @@ skipRecommendation(rec)
 
 ## 10. Flow 8: Suggestion Chips (Archived)
 
-> **Archived**: The `SuggestionChips` component has been replaced by `RecommendationLine` (Step 5t/5u, 2026-03-17). The `fetchSuggestions()` method still exists in the store but is never called. Recommendation logic is now handled entirely by `fetchRecommendations()` which computes depletion percentages and shows items due within 3 days.
+> **Archived**: The `SuggestionChips` component and `fetchSuggestions()` store method have been deleted (Step 5t/5u, 2026-03-17). Replaced by `RecommendationLine` component with `fetchRecommendations()` which computes depletion percentages and shows items due within 3 days.
 >
 > See **Flow 7: Recommendation Line** for the current implementation.
 
@@ -500,9 +500,9 @@ $$\text{NextDate} = \text{lastPurchasedAt} + (ema\_days \times Q_{last})$$
        ▼
 ┌──────────────┐
 │ suggest_only │  Score 50–84
-│ (suggesting) │  Shown as suggestion chip
-└──────┬───────┘
-       │ User accepts suggestions → +15/event
+│ (suggesting) │  Used by recommendation engine
+└──────┴───────┘
+       │ User accepts recommendations → +15/event
        ▼
 ┌──────────────┐
 │   auto_add   │  Score ≥ 85
@@ -519,7 +519,7 @@ $$\text{NextDate} = \text{lastPurchasedAt} + (ema\_days \times Q_{last})$$
 | Signal                                    | Change | Where                   |
 | ----------------------------------------- | ------ | ----------------------- |
 | Purchase within 15% of predicted interval | +10    | Nightly function        |
-| User accepts suggestion                   | +15    | acceptSuggestion action |
+| User accepts recommendation               | +15    | acceptRecommendation action |
 | User deletes auto-added item              | -20    | DB trigger              |
 | User snoozes item                         | -15    | DB trigger              |
 

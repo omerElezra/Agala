@@ -55,18 +55,11 @@
   - **RLS-safe editing**: Global products are cloned as custom products when edited, preventing silent RLS failures. ✅
   - **Shopping list re-linking**: Cloned product is automatically linked to the existing shopping list item. ✅
 
-- [x] **Smart AI Suggestions Module (הצעות AI חכמות)** ✅ Implemented (Step 5n)
-  - **Location**: Main shopping list screen, directly below search bar. ✅
-  - **Dynamic suggestion chips**: ✅
-    - Horizontal scroll list of high-likelihood products. ✅
-    - Show product name + confidence percent in each chip. ✅
-  - **Confidence display**: ✅
-    - Examples: `חלב תנובה 92%`, `ביצים L 85%`. ✅
-  - **Logic rules**: ✅
-    - Rank suggestions by descending confidence score. ✅
-    - Show only items above configured confidence threshold (`AI_SUGGESTION_CONFIG.confidenceThreshold`). ✅
-    - Keep items predicted to run out by today as a single priority line at the top. ✅
-    - Refresh scores when purchases are completed or list state changes. ✅
+- [x] **Smart AI Suggestions Module (הצעות AI חכמות)** ✅ Implemented (Step 5n), replaced by Recommendation Line (Step 5t/5u)
+  - Originally: Suggestion chips with confidence scores below search bar.
+  - Now replaced by `RecommendationLine` component with depletion-based urgency cards.
+  - `SuggestionChips.tsx` deleted, `fetchSuggestions()` removed from store.
+  - Recommendation engine uses `fetchRecommendations()` with depletion % calculation.
 
 - [x] **Recommended Prediction Line in Shopping List (שורת המלצות)** ✅ Implemented (2026-03-16)
   - **Location**: Main shopping list screen, between search bar and cart section.
@@ -100,7 +93,7 @@
 
 - [ ] **Analytics & Crash Reporting (ניטור קריסות)**
   - Integrate Sentry (`sentry-expo`) or Firebase Crashlytics for production error monitoring.
-  - Track key user events: sign-up, item added, purchase marked, AI suggestion accepted.
+  - Track key user events: sign-up, item added, purchase marked, AI recommendation accepted.
 
 - [ ] **Push Notifications (התראות דחיפה)**
   - Add `expo-notifications` + Firebase Cloud Messaging (FCM).

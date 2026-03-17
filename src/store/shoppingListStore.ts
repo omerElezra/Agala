@@ -14,16 +14,6 @@ export interface ShoppingItem extends ShoppingListRow {
   product: ProductRow | null;
 }
 
-/** A suggestion sourced from household_inventory_rules (confidence 50-84). */
-export interface SuggestionItem {
-  id: string; // household_inventory_rules.id
-  productId: string;
-  product: ProductRow;
-  confidenceScore: number;
-  /** Days until next predicted purchase (negative = overdue). */
-  daysUntilNextBuy: number | null;
-}
-
 /** A recommendation for items due soon or overdue, shown in a horizontal line. */
 export interface RecommendationItem {
   id: string; // household_inventory_rules.id
@@ -34,14 +24,6 @@ export interface RecommendationItem {
   /** "overdue" | "due-soon" (1-2 days) | "upcoming" (3 days) */
   urgency: "overdue" | "due-soon" | "upcoming";
 }
-
-/** Configurable thresholds for the AI suggestion system. */
-export const AI_SUGGESTION_CONFIG = {
-  /** Minimum confidence score to show a suggestion chip. */
-  confidenceThreshold: 50,
-  /** Items overdue or due within this many days are "urgent". */
-  urgentWithinDays: 0,
-} as const;
 
 /** Prediction urgency status for a product. */
 export type PredictionStatus =
@@ -59,7 +41,7 @@ interface OfflineAction {
 interface ShoppingListState {
   // ── Data ─────────────────────────────────────────────────
   items: ShoppingItem[];
-  suggestions: SuggestionItem[];
+
   recommendations: RecommendationItem[];
   /** Full pool of recommendation candidates (sorted), sliced to show top N. */
   _allRecCandidates: RecommendationItem[];
@@ -81,7 +63,7 @@ interface ShoppingListState {
 
   // ── Actions ──────────────────────────────────────────────
   fetchList: (householdId: string) => Promise<void>;
-  fetchSuggestions: (householdId: string) => Promise<void>;
+
   fetchRecommendations: (householdId: string) => Promise<void>;
   subscribeRealtime: (householdId: string) => () => void;
   checkOffItem: (itemId: string) => void;
@@ -96,7 +78,6 @@ interface ShoppingListState {
     toCart?: boolean,
   ) => "added" | "exists";
   updateQuantity: (itemId: string, newQuantity: number) => Promise<void>;
-  acceptSuggestion: (suggestion: SuggestionItem) => Promise<void>;
   /** Accept a recommendation — add to cart and instantly replace in the list. */
   acceptRecommendation: (rec: RecommendationItem) => void;
   /** Skip a recommendation — hide it and instantly replace in the list. */
@@ -107,7 +88,6 @@ interface ShoppingListState {
 // ── Store ────────────────────────────────────────────────────
 export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
   items: [],
-  suggestions: [],
   recommendations: [],
   _allRecCandidates: [],
   _skippedRecIds: new Set(),
@@ -177,90 +157,6 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     // 4. Fetch recommendations + prediction status + depletion map
     get().fetchRecommendations(householdId);
-  },
-
-  // ── Fetch suggestions from household_inventory_rules ───────
-  fetchSuggestions: async (householdId: string) => {
-    const { data, error } = await supabase
-      .from("household_inventory_rules")
-      .select("*, product:products(*)")
-      .eq("household_id", householdId)
-      .eq("auto_add_status", "suggest_only")
-      .gte("confidence_score", AI_SUGGESTION_CONFIG.confidenceThreshold)
-      .order("confidence_score", { ascending: false });
-
-    if (error || !data) {
-      console.error("[store] fetchSuggestions error:", error?.message);
-      return;
-    }
-
-    console.log("[store] fetchSuggestions: raw rules count:", data.length);
-
-    // Exclude products that are currently active in the cart (not purchased ones)
-    const activeProductIds = new Set(
-      get()
-        .items.filter((i) => i.status === "active")
-        .map((i) => i.product_id),
-    );
-
-    // Exclude products already shown in the RecommendationLine to avoid duplicates
-    const recProductIds = new Set(
-      get().recommendations.map((r) => r.productId),
-    );
-
-    type RuleWithProduct = InventoryRuleRow & { product: ProductRow };
-
-    const now = Date.now();
-    const DAY_MS = 24 * 60 * 60 * 1000;
-
-    // Build a lookup for last purchase quantity per product
-    const itemsByProduct = new Map(get().items.map((i) => [i.product_id, i]));
-
-    const suggestions: SuggestionItem[] = (data as RuleWithProduct[])
-      .filter(
-        (rule) =>
-          !activeProductIds.has(rule.product_id) &&
-          !recProductIds.has(rule.product_id),
-      )
-      .map((rule) => {
-        // Compute days until next predicted purchase
-        // ema_days is per-1-item; multiply by last qty for actual interval
-        let daysUntilNextBuy: number | null = null;
-        if (rule.last_purchased_at && rule.ema_days > 0) {
-          const lastQty = itemsByProduct.get(rule.product_id)?.quantity ?? 1;
-          // Use most recent purchase date (same logic as fetchRecommendations)
-          const ruleDate = new Date(rule.last_purchased_at).getTime();
-          const shopItem = itemsByProduct.get(rule.product_id);
-          const shopDate = shopItem?.purchased_at
-            ? new Date(shopItem.purchased_at).getTime()
-            : 0;
-          const lastDate = Math.max(ruleDate, shopDate);
-          const nextDate = lastDate + rule.ema_days * lastQty * DAY_MS;
-          daysUntilNextBuy = Math.ceil((nextDate - now) / DAY_MS);
-        }
-
-        return {
-          id: rule.id,
-          productId: rule.product_id,
-          product: rule.product,
-          confidenceScore: rule.confidence_score,
-          daysUntilNextBuy,
-        };
-      })
-      // Sort: urgent items first (overdue/due today), then by descending confidence
-      .sort((a, b) => {
-        const aUrgent =
-          a.daysUntilNextBuy !== null &&
-          a.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
-        const bUrgent =
-          b.daysUntilNextBuy !== null &&
-          b.daysUntilNextBuy <= AI_SUGGESTION_CONFIG.urgentWithinDays;
-        if (aUrgent && !bUrgent) return -1;
-        if (!aUrgent && bUrgent) return 1;
-        return b.confidenceScore - a.confidenceScore;
-      });
-
-    set({ suggestions });
   },
 
   // ── Fetch recommendations + prediction status map ────────
@@ -828,27 +724,6 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
         ),
       });
     }
-  },
-
-  // ── Accept a suggestion → insert into shopping_list ────────
-  acceptSuggestion: async (suggestion: SuggestionItem) => {
-    const state = get();
-    const householdId = state.householdId;
-    if (!householdId) return;
-
-    // Optimistic: remove from suggestions
-    set({
-      suggestions: state.suggestions.filter((s) => s.id !== suggestion.id),
-    });
-
-    // Delegate to addItem (now synchronous + optimistic) — add to cart since user wants to buy
-    get().addItem(
-      suggestion.productId,
-      householdId,
-      1,
-      suggestion.product,
-      true,
-    );
   },
 
   // ── Accept recommendation → add to cart + replace instantly ──

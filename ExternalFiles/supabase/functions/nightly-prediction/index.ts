@@ -11,7 +11,7 @@
 //        last_purchased_at + (ema_days * quantity_modifier) <= now()
 //   2. Evaluate confidence_score:
 //        >= 85  → Auto-Add to shopping_list (status = 'active')
-//        50-84  → Mark as 'suggest_only' (client shows in Suggestions)
+//        50-84  → Mark as 'suggest_only' (used by recommendation engine)
 //        < 50   → 'manual_only' (still learning, no action)
 //   3. Recalculate EMA for products purchased since last run.
 // ─────────────────────────────────────────────────────────────
@@ -323,7 +323,7 @@ async function evaluateRulesAndAct(
     // ── Confidence 50-84 → Suggest ───────────────────────────
     else if (rule.confidence_score >= CONFIDENCE_SUGGEST) {
       // Ensure the rule is flagged as suggest_only so the client
-      // picks it up in the Suggestions UI section.
+      // picks it up in the Recommendation Line.
       if (rule.auto_add_status !== "suggest_only") {
         const { error: updateError } = await supabase
           .from("household_inventory_rules")

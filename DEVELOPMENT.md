@@ -241,7 +241,7 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 
 | File                                  | Lines  | Description                                                                                                     |
 | :------------------------------------ | :----- | :-------------------------------------------------------------------------------------------------------------- |
-| `src/store/shoppingListStore.ts`      | ~500   | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging                             |
+| `src/store/shoppingListStore.ts`      | ~500   | Core state: items, recommendations, optimistic CRUD, realtime, purchase_history logging                             |
 | `app/item/[id].tsx`                   | ~1760  | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, clone-on-edit                      |
 | `app/(tabs)/index.tsx`                | ~1170  | Main list: sort chips (name/category/recent), CategorySheet, counter badges, collapsible sections               |
 | `app/(tabs)/settings.tsx`             | ~650   | Profile editing (refreshProfile), household management, import (file/clipboard/manual)                          |
