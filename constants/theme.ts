@@ -27,8 +27,8 @@ export const dark = {
   accent: "#6C5DD3", // purple          (--primary-accent)
   accentDark: "#5A4CBF", // deeper purple (pressed states)
   accentSoft: "#6C5DD322", // purple with low opacity
-  secondary: "#4ECDC4", // teal — secondary accent
-  secondaryDark: "#38B2A8", // deeper teal
+  secondary: "#5da6d3", // purple — secondary accent
+  secondaryDark: "#594cbf", // deeper purple
   success: "#4ADE80", // bright green    (--success-color)
   successBg: "#0D2818", // green tinted background
   error: "#FB7185", // rose            (--error-color)

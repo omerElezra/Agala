@@ -1,7 +1,7 @@
 # Agala — Next Features Plan
 
 > Product roadmap items for upcoming development.
-> Last updated: 2026-03-06
+> Last updated: 2026-03-17
 > Status: Active development
 
 ## Planned Features
@@ -68,13 +68,18 @@
     - Keep items predicted to run out by today as a single priority line at the top. ✅
     - Refresh scores when purchases are completed or list state changes. ✅
 
-- [ ] **Recommended Prediction Line in Shopping List (שורת המלצות)**
-  - **Location**: Main shopping list screen, above or below the active cart section.
-  - Add a dedicated "recommended" row/section showing products the nightly prediction engine flagged as due soon.
-  - Each recommended item shows product name + predicted days until needed.
-  - One-tap "+" to add the recommended item directly to the active shopping list.
-  - Dismissing a recommendation applies a confidence penalty (similar to snooze).
-  - Automatically hides items already in the active list.
+- [x] **Recommended Prediction Line in Shopping List (שורת המלצות)** ✅ Implemented (2026-03-16)
+  - **Location**: Main shopping list screen, between search bar and cart section.
+  - Horizontal FlatList of recommended product cards with urgency color coding (red=overdue, yellow=due-soon, green=upcoming).
+  - Each card shows: product name, colored dot, urgency label ("איחור X ימים" / "היום" / "מחר" / "עוד X ימים").
+  - **Two action buttons per card**: 🛒 הוסף (add to cart) and דלג (skip).
+  - **Animated transitions**: Cards fade out (opacity 1→0) and scale down (1→0.85) over 250ms on button press.
+  - **Instant replacement**: Removed items are instantly replaced from a pre-sorted candidate pool — no refresh required.
+  - **Smart filtering**: Only shows items from "All Items" (status='purchased'), never from the active cart.
+  - **Synced with cart actions**: Adding an item from "All Items" to cart immediately removes it from recommendations.
+  - **Purchase resets predictions**: Checking off an item instantly sets its dot to "normal" and removes it from recommendations.
+  - **Candidate pool stored in state**: `_allRecCandidates` holds all eligible items; `_skippedRecIds` tracks session skips.
+  - **Data source**: `household_inventory_rules` with `ema_days > 0` and `last_purchased_at` set, filtered to `daysLeft <= 3`.
 
 - [ ] **Cart pricing summary**
   - Add price to all products.
@@ -112,7 +117,58 @@
   - Required by Google Play Console before publishing.
   - Link it from Settings screen and from the Store Listing.
 
+- [x] **Smart Category Auto-Detection (זיהוי קטגוריה חכם)** ✅ Implemented (Step 5u)
+  - Auto-detect category for new items using expanded keyword mappings in `categoryDetector.ts`. ✅
+  - DB-based fallback and CategorySheet prompt when undetected. ✅
+  - All categories consolidated to single source of truth (`CATEGORY_EMOJIS`, `CATEGORIES`). ✅
+
+- [x] **Upgrade App from Settings (עדכון אפליקציה)** ✅ Implemented
+  - Added "בדיקת עדכון אפליקציה" button in the settings page.
+  - Compares current app version against latest GitHub release tag.
+  - If newer version exists → shows banner + opens Play Store.
+  - If up to date → shows success banner.
+  - Fallback on error: opens Play Store directly so user can check manually.
+
+- [ ] **Add-Item Default Behavior Preference (העדפת הוספת מוצר)**
+  - Add preference in Settings to choose default behavior: add to product list or shopping cart.
+  - Integrate with existing `showAddToCartOption` setting.
+
+- [x] **Search Bar Add-Item Options Icon (אפשרויות חיפוש)** ✅ Implemented
+  - Added a bulk-import icon (list icon with teal border) on the left side of the search bar.
+  - Opens a bottom sheet modal with 3 import options: file picker, clipboard paste, manual text input.
+  - Same import logic as the Settings import — parses lines of "name" or "name,quantity".
+  - Results shown in a popup overlay with success/error feedback.
+
 ## Notes
 
 - Keep UX minimal and clear.
 - Prioritize Hebrew-first labels and RTL behavior in every new screen/component.
+
+## Revisit & Improve (Post-Launch)
+
+- [ ] **Prediction Flow Accuracy Revisit**
+  - Validate that `last_purchased_at` in `household_inventory_rules` is always updated on purchase (currently fixed in `checkOffItem`).
+  - Monitor whether the combined `Math.max(rule.last_purchased_at, item.purchased_at)` approach for dot calculation stays accurate as more data accumulates.
+  - Consider computing `daysLeft` server-side in the nightly function and storing it in the rule row to avoid client/server drift.
+  - Evaluate if `ema_days = 7` default from backfill causes incorrect dots for items with very different real cycles.
+
+- [ ] **Recommendation Engine Refinements**
+  - Consider adding a "snooze" option per recommendation (in addition to skip) with a configurable delay.
+  - Track skip frequency — if a product is frequently skipped, lower its confidence score.
+  - Add "reason" context to recommendations (e.g., "last bought 10 days ago, cycle is 7 days").
+  - Consider widening the recommendation window from 3 days to configurable (user preference).
+
+- [ ] **Suggestion Chips Pipeline**
+  - Currently requires `auto_add_status = 'suggest_only'` AND `confidence_score >= 50` — most new items start at 0 confidence.
+  - Consider showing suggestions for items with `ema_days > 0` regardless of confidence, or lowering the threshold for new users.
+  - Evaluate cold-start experience: new users won't see suggestions until the nightly function has run multiple times.
+
+- [ ] **Purchase History Completeness Audit**
+  - Verify all purchase paths write to `purchase_history` (checkOffItem, addItem with status='purchased', nightly auto-add).
+  - Consider adding a migration that reconciles `purchase_history` with `shopping_list` status changes periodically.
+
+- [ ] **Prediction Dot Colors UX Review**
+  - Dots replaced by depletion % labels in Step 5u ("לך תקנה", "תכף נגמר", etc.) with colored indicators.
+  - Gather user feedback on whether the 6-tier label system is clear enough.
+  - Consider adding a legend or tooltip explaining what each label means.
+  - Depletion display is toggle-able via Settings → "מד מלאי בקטלוג".

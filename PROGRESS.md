@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-03-06
+> Last updated: 2026-03-17
 
 ---
 
@@ -249,6 +249,49 @@
 - [x] Check off item → `purchased_at` timestamp set
 - [x] Realtime sync between devices — working
 
+### 5t. Prediction System Fixes & Recommendation Line (2026-03-16/17)
+
+- [x] **Recommendation Line component** — New `src/components/RecommendationLine.tsx` horizontal FlatList showing products due within 3 days with urgency color coding (overdue=red, due-soon=yellow, upcoming=green)
+- [x] **Add + Skip buttons per card** — Each recommendation card has "🛒 הוסף" (add to cart) and "דלג" (skip) buttons instead of single-tap card
+- [x] **Animated card dismissal** — Cards fade out (opacity 1→0) and scale down (1→0.85) over 250ms on button press using React Native Animated API
+- [x] **Instant replacement from candidate pool** — Store maintains `_allRecCandidates` (full sorted pool) and `_skippedRecIds` (session skips); visible recommendations are always top 5 from remaining pool
+- [x] **`acceptRecommendation` action** — Adds item to cart, removes from candidate pool, instantly refreshes visible list
+- [x] **`skipRecommendation` action** — Tracks skipped product ID in session set, removes from pool, instantly refreshes
+- [x] **Recommendation filter: purchased-only** — Changed from exclusion logic (`!activeProductIds.has`) to inclusion (`purchasedProductIds.has`) — only items in "All Items" section (status='purchased') can appear as recommendations
+- [x] **Reactivate item refreshes recs** — When adding an item from "All Items" to cart via `reactivateItem`, recommendations instantly update (item no longer in purchased set)
+- [x] **Purchase history + inventory rule creation** — `checkOffItem` now creates `purchase_history` entry AND updates `last_purchased_at` on existing `household_inventory_rules` (previously only created new rules, never updated existing ones)
+- [x] **Optimistic prediction dot reset** — Checking off an item instantly sets its `predictionStatusMap` entry to "normal" (no dot) before any DB call
+- [x] **Optimistic recommendation removal on purchase** — Checking off an item removes it from `_allRecCandidates` and `recommendations` immediately
+- [x] **Clock-aware dot calculation** — `fetchRecommendations` now uses `Math.max(rule.last_purchased_at, item.purchased_at)` to compute `lastDate`, ensuring recently purchased items always show correct dot color even if the DB rule update is slow
+- [x] **Backfill migration fix** — Fixed stray `§` character in SQL that caused silent syntax error; rewrote with `DO $$` diagnostic blocks showing BEFORE/AFTER table counts via `RAISE NOTICE`
+- [x] **Client-side `activeProductIds` filter bug** — Fixed `fetchSuggestions` and `fetchRecommendations` to only exclude `status='active'` items (was excluding ALL items including purchased)
+
+### 5u. AI Recommendations, Depletion Tracking, Voice Input & UX Overhaul (2026-03-17)
+
+- [x] **RecommendationLine component** — New `src/components/RecommendationLine.tsx` with horizontal scrollable cards, urgency color coding (red/orange/yellow), animated card dismissal (fade + scale), and instant replacement from candidate pool
+- [x] **Depletion % display in catalog** — Each "All Items" card shows consumption depletion percentage with Hebrew urgency labels ("לך תקנה", "תכף נגמר", "חצי קלאץ'", "יש, אל תדאג", "יש בשפע", "הרגע קנינו") and color indicators (red/orange/yellow)
+- [x] **Depletion sort mode** — New "עומד להיגמר" sort option in catalog; highest depletion sorted first, items without data sink to bottom
+- [x] **Sort direction toggle** — Tapping already-active sort chip toggles ascending/descending; arrow indicators (↑/↓) shown on active chip; resets to ascending on screen focus
+- [x] **Collapsible sections** — Both "עגלה שלי" and "הקטלוג שלי" sections can be collapsed/expanded with tap on header (▲/▼ toggle arrows)
+- [x] **Centered section headers** — Both section titles rendered with decorative horizontal lines (── title ──)
+- [x] **Sticky pinned headers** — Cart and catalog headers pin to top while scrolling their respective items via `stickyHeaderIndices` on FlatList
+- [x] **Voice input hook** — New `src/hooks/useSpeechRecognition.ts` using `expo-speech-recognition` for Hebrew speech-to-text with graceful fallback
+- [x] **App settings store** — New `src/store/appSettingsStore.ts` (Zustand + AsyncStorage) with toggles: `showRecommendations`, `showDepletion`, `autoAddEnabled`
+- [x] **Settings AI branding** — Settings toggles renamed with AI branding: "🤖 AI מזהה מה חסר", "מד מלאי בקטלוג", "🤖 AI ממלא את העגלה"
+- [x] **WhatsNewModal component** — New `src/components/WhatsNewModal.tsx` for in-app changelog display on version update
+- [x] **Category detector expansion** — Enhanced keyword mappings, consolidated exports (`CATEGORY_EMOJIS`, `CATEGORIES`)
+- [x] **Prediction dots removed from catalog** — Replaced with depletion % and status labels; dots (`predictionStatusMap`) no longer displayed
+- [x] **Catalog renamed** — "כל המוצרים" → "הקטלוג שלי"
+- [x] **Font size adjustments** — Product name (14→16) and category subtitle (10→12) in catalog cards
+- [x] **Sort chip size reduction** — Reduced padding and font size for sort chips to prevent overflow
+- [x] **DB migration: legacy category normalization** — `20260315_normalize_legacy_categories.sql` maps old category names to official 16-category standard
+- [x] **DB migration: backfill inventory rules** — `20260316_backfill_inventory_rules.sql` seeds purchase history and inventory rules from existing data
+- [x] **Legacy category fix script** — `scripts/fix_legacy_categories.py` for ad-hoc category normalization
+
+---
+
+## Next Steps
+
 ### 10. Deploy Edge Function (Nightly Predictions)
 
 - [ ] Install Supabase CLI: `npm install -g supabase`
@@ -336,6 +379,15 @@
 - [ ] Build iOS: `eas build --platform ios --profile production`
 - [ ] Submit to App Store: `eas submit --platform ios`
 - [ ] Complete App Store Connect listing (screenshots, description, review notes)
+
+### 16. Auto Release Notes (GitHub + Google Play + In-App)
+
+- [x] **Release notes generator script** — `scripts/generate-release-notes.js` parses git log, maps conventional-commit prefixes to Hebrew categories (✨ תכונות חדשות, 🐛 תיקוני באגים, 🎨 עיצוב, 🧠 חיזוי, etc.), outputs `whatsnew/he-IL` + JSON
+- [x] **GitHub Releases** — already configured: `generate_release_notes: true` + `.github/release.yml` with 7 label categories
+- [x] **Google Play release notes** — `whatsnew/he-IL` auto-generated in CI before `eas submit`; EAS Submit picks it up automatically
+- [x] **CI email — dynamic notes** — Release notification email now uses `${{ steps.notes.outputs.html }}` instead of hardcoded text
+- [x] **In-app "מה חדש" modal** — `src/components/WhatsNewModal.tsx` fetches GitHub Releases API on launch, compares `app.json` version to AsyncStorage `lastSeenVersion`, parses markdown body into Hebrew sections, shows once per version
+- [x] **Wired into layout** — `WhatsNewModal` rendered in `app/_layout.tsx` after auth (only when logged in)
 
 ---
 

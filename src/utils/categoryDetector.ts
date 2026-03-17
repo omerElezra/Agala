@@ -1021,7 +1021,90 @@ const CATEGORY_KEYWORDS: CategoryMap = {
 /** All available category names */
 export const CATEGORY_NAMES = Object.keys(CATEGORY_KEYWORDS);
 
-/** Category → emoji mapping (single source of truth) */
+/**
+ * Map legacy / non-standard category names to official ones.
+ * This handles old DB entries, seed data, and any external sources.
+ */
+const LEGACY_TO_OFFICIAL: Record<string, string> = {
+  // Dairy variants
+  "מוצרי חלב": "חלב וביצים",
+  "מוצרי חלב וביצים": "חלב וביצים",
+  ביצים: "חלב וביצים",
+  חלב: "חלב וביצים",
+  // Produce variants
+  ירקות: "פירות וירקות",
+  פירות: "פירות וירקות",
+  // Meat variants
+  "בשר ועוף": "בשר, עוף ודגים",
+  בשר: "בשר, עוף ודגים",
+  עוף: "בשר, עוף ודגים",
+  דגים: "בשר, עוף ודגים",
+  "דגים ופירות ים": "בשר, עוף ודגים",
+  // Bread variants
+  מאפים: "לחם ומאפים",
+  לחם: "לחם ומאפים",
+  // Drinks variants
+  משקאות: "שתייה",
+  // Snacks variants
+  "חטיפים וממתקים": "חטיפים, ממתקים ודגנים",
+  ממתקים: "חטיפים, ממתקים ודגנים",
+  "ממתקים ואפייה": "חטיפים, ממתקים ודגנים",
+  חטיפים: "חטיפים, ממתקים ודגנים",
+  דגנים: "חטיפים, ממתקים ודגנים",
+  // Canned / sauces variants
+  "שימורים ורטבים": "שימורים, רטבים וממרחים",
+  שימורים: "שימורים, רטבים וממרחים",
+  רטבים: "שימורים, רטבים וממרחים",
+  ממרחים: "שימורים, רטבים וממרחים",
+  // Spices / oil variants
+  "תבלינים ושמנים": "תבלינים, אפייה ושמנים",
+  תבלינים: "תבלינים, אפייה ושמנים",
+  שמנים: "תבלינים, אפייה ושמנים",
+  // Pasta / rice variants
+  "דגנים, אורז ופסטה": "פסטה, אורז וקטניות",
+  יבשים: "פסטה, אורז וקטניות",
+  פסטה: "פסטה, אורז וקטניות",
+  אורז: "פסטה, אורז וקטניות",
+  קטניות: "פסטה, אורז וקטניות",
+  // Cleaning variants
+  "מוצרי ניקיון": "ניקיון וחד פעמי",
+  ניקיון: "ניקיון וחד פעמי",
+  "חד פעמי": "ניקיון וחד פעמי",
+  // Hygiene variants
+  "טיפוח אישי": "טיפוח והיגיינה",
+  טיפוח: "טיפוח והיגיינה",
+  היגיינה: "טיפוח והיגיינה",
+  // Baby variants
+  "מוצרים לתינוקות וילדים": "תינוקות",
+  "מוצרי תינוקות": "תינוקות",
+  // Frozen variants
+  "מזון קפוא": "קפואים",
+  קפוא: "קפואים",
+  // Health variants
+  "מזון בריאות ואורגני": "בריאות ואורגני",
+  אורגני: "בריאות ואורגני",
+  // Ready meals variants
+  "מזון מוכן וארוחות": "ארוחות מוכנות",
+  "מזון מוכן": "ארוחות מוכנות",
+};
+
+/**
+ * Normalize a category string to one of the official 16 categories.
+ * Maps legacy/non-standard names to official ones.
+ * Returns "ללא קטגוריה" for null/unknown values.
+ */
+export function normalizeCategory(category: string | null): string {
+  if (!category) return "ללא קטגוריה";
+  // Already an official category
+  if (CATEGORY_NAMES.includes(category)) return category;
+  // Check legacy mapping
+  const mapped = LEGACY_TO_OFFICIAL[category];
+  if (mapped) return mapped;
+  // Unknown — fallback
+  return "ללא קטגוריה";
+}
+
+/** Category → emoji mapping (single source of truth — official only) */
 export const CATEGORY_EMOJIS: Record<string, string> = {
   "פירות וירקות": "🥬",
   "חלב וביצים": "🥛",
@@ -1040,22 +1123,6 @@ export const CATEGORY_EMOJIS: Record<string, string> = {
   "בריאות ואורגני": "🌿",
   "ארוחות מוכנות": "🥘",
   "ללא קטגוריה": "📦",
-  // Legacy fallbacks
-  "מוצרי חלב וביצים": "🥛",
-  "בשר ועוף": "🍗",
-  "דגים ופירות ים": "🐟",
-  משקאות: "🥤",
-  "חטיפים וממתקים": "🍫",
-  "שימורים ורטבים": "🥫",
-  "תבלינים ושמנים": "🧂",
-  "דגנים, אורז ופסטה": "🍚",
-  "מוצרי ניקיון": "🧹",
-  "טיפוח אישי": "🧴",
-  "מוצרים לתינוקות וילדים": "🍼",
-  "מזון קפוא": "🧊",
-  "מזון בריאות ואורגני": "🌿",
-  "מזון מוכן וארוחות": "🥘",
-  "ממתקים ואפייה": "🎂",
 };
 
 /** Structured category list for UI pickers */
@@ -1102,15 +1169,49 @@ export function getSmartDefaultDays(category: string | null): number {
  * Detect category for a Hebrew product name.
  * Returns the best-matching category or null.
  */
+/**
+ * Check whether a category string is one of the known 16 categories.
+ * Useful for validating DB-sourced categories before assigning them.
+ */
+export function isValidCategory(category: string | null): boolean {
+  if (!category) return false;
+  return CATEGORY_NAMES.includes(category);
+}
+
 export function detectCategory(productName: string): string | null {
   const name = productName.trim().toLowerCase();
   if (name.length < 2) return null;
 
-  // Exact keyword match first
+  // 1. Exact full-name match (highest priority)
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
     for (const kw of keywords) {
-      if (name === kw || name.includes(kw) || kw.includes(name)) {
-        return category;
+      if (name === kw) return category;
+    }
+  }
+
+  // 2. Scored matching — prefer longer keyword matches to avoid
+  //    e.g. "שוקולד" (3 chars in חטיפים) beating "חלב שוקולד" context.
+  let bestCategory: string | null = null;
+  let bestLength = 0;
+
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const kw of keywords) {
+      if ((name.includes(kw) || kw.includes(name)) && kw.length > bestLength) {
+        bestCategory = category;
+        bestLength = kw.length;
+      }
+    }
+  }
+
+  if (bestCategory) return bestCategory;
+
+  // 3. Word-level matching — split product name into words,
+  //    check each word against the keyword list.
+  const words = name.split(/\s+/).filter((w) => w.length >= 2);
+  for (const word of words) {
+    for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
+      for (const kw of keywords) {
+        if (kw === word) return category;
       }
     }
   }

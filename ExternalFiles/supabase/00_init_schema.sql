@@ -200,18 +200,18 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.household_inventory_rules;
 -- =============================================================
 
 INSERT INTO public.products (name, category, is_custom, created_by_household) VALUES
-  ('חלב 3%',        'מוצרי חלב',  false, NULL),
-  ('גבינה צהובה 200 גרם', 'מוצרי חלב', false, NULL),
-  ('לחם פרוס',      'מאפים',      false, NULL),
-  ('ביצים 12',      'ביצים',      false, NULL),
-  ('עגבניות',       'ירקות',      false, NULL),
-  ('מלפפונים',      'ירקות',      false, NULL),
-  ('בננות',         'פירות',      false, NULL),
-  ('תפוחים',        'פירות',      false, NULL),
-  ('חזה עוף',       'בשר ועוף',   false, NULL),
-  ('אורז 1 ק"ג',   'יבשים',      false, NULL),
-  ('פסטה 500 גרם',  'יבשים',      false, NULL),
-  ('שמן זית',       'שמנים',      false, NULL),
-  ('נייר טואלט',    'ניקיון',     false, NULL),
-  ('סבון כלים',     'ניקיון',     false, NULL),
-  ('קפה טורקי',     'משקאות',     false, NULL);
+  ('חלב 3%',        'חלב וביצים',  false, NULL),
+  ('גבינה צהובה 200 גרם', 'חלב וביצים', false, NULL),
+  ('לחם פרוס',      'לחם ומאפים',      false, NULL),
+  ('ביצים 12',      'חלב וביצים',      false, NULL),
+  ('עגבניות',       'פירות וירקות',      false, NULL),
+  ('מלפפונים',      'פירות וירקות',      false, NULL),
+  ('בננות',         'פירות וירקות',      false, NULL),
+  ('תפוחים',        'פירות וירקות',      false, NULL),
+  ('חזה עוף',       'בשר, עוף ודגים',   false, NULL),
+  ('אורז 1 ק"ג',   'פסטה, אורז וקטניות',      false, NULL),
+  ('פסטה 500 גרם',  'פסטה, אורז וקטניות',      false, NULL),
+  ('שמן זית',       'תבלינים, אפייה ושמנים',      false, NULL),
+  ('נייר טואלט',    'ניקיון וחד פעמי',     false, NULL),
+  ('סבון כלים',     'ניקיון וחד פעמי',     false, NULL),
+  ('קפה טורקי',     'שתייה',     false, NULL);

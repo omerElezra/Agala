@@ -1,29 +1,32 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { dark } from "@/constants/theme";
+import { useAuth } from "@/src/hooks/useAuth";
+import { supabase } from "@/src/lib/supabase";
+import { useShoppingListStore } from "@/src/store/shoppingListStore";
+import type { Database } from "@/src/types/database";
+import { normalizeCategory } from "@/src/utils/categoryDetector";
+import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker, {
+    DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/src/lib/supabase';
-import { useAuth } from '@/src/hooks/useAuth';
-import { useShoppingListStore } from '@/src/store/shoppingListStore';
-import { dark } from '@/constants/theme';
-import type { Database } from '@/src/types/database';
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // ── Types ────────────────────────────────────────────────────
-type ProductRow = Database['public']['Tables']['products']['Row'];
+type ProductRow = Database["public"]["Tables"]["products"]["Row"];
 
 /** A single purchase transaction from purchase_history */
 interface PurchaseTransaction {
@@ -37,11 +40,20 @@ interface PurchaseTransaction {
 
 type ListRow =
   | PurchaseTransaction
-  | { type: 'header'; title: string; isToday: boolean; count: number; key: string };
+  | {
+      type: "header";
+      title: string;
+      isToday: boolean;
+      count: number;
+      key: string;
+    };
 
-type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
+type DateFilter = "all" | "today" | "week" | "month" | "custom";
 
-function formatDateHebrew(dateStr: string): { label: string; isToday: boolean } {
+function formatDateHebrew(dateStr: string): {
+  label: string;
+  isToday: boolean;
+} {
   const d = new Date(dateStr);
   const today = new Date();
   const yesterday = new Date();
@@ -54,22 +66,22 @@ function formatDateHebrew(dateStr: string): { label: string; isToday: boolean } 
 
   if (isSameDay(d, today)) {
     return {
-      label: `היום, ${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`,
+      label: `היום, ${d.toLocaleDateString("he-IL", { day: "numeric", month: "long" })}`,
       isToday: true,
     };
   }
   if (isSameDay(d, yesterday)) {
     return {
-      label: `אתמול, ${d.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}`,
+      label: `אתמול, ${d.toLocaleDateString("he-IL", { day: "numeric", month: "long" })}`,
       isToday: false,
     };
   }
 
   return {
-    label: d.toLocaleDateString('he-IL', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
+    label: d.toLocaleDateString("he-IL", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
     }),
     isToday: false,
   };
@@ -81,7 +93,7 @@ export default function HistoryScreen() {
   const [transactions, setTransactions] = useState<PurchaseTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [customDate, setCustomDate] = useState<Date>(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [addedItemId, setAddedItemId] = useState<string | null>(null);
@@ -89,26 +101,34 @@ export default function HistoryScreen() {
 
   // ── Filter items by date ───────────────────────────────────
   const filteredItems = useMemo(() => {
-    if (dateFilter === 'all') return transactions;
+    if (dateFilter === "all") return transactions;
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
 
     let cutoff: Date;
     switch (dateFilter) {
-      case 'today':
+      case "today":
         cutoff = startOfToday;
         break;
-      case 'week':
+      case "week":
         cutoff = new Date(startOfToday);
         cutoff.setDate(cutoff.getDate() - 7);
         break;
-      case 'month':
+      case "month":
         cutoff = new Date(startOfToday);
         cutoff.setMonth(cutoff.getMonth() - 1);
         break;
-      case 'custom': {
-        const start = new Date(customDate.getFullYear(), customDate.getMonth(), customDate.getDate());
+      case "custom": {
+        const start = new Date(
+          customDate.getFullYear(),
+          customDate.getMonth(),
+          customDate.getDate(),
+        );
         const end = new Date(start);
         end.setDate(end.getDate() + 1);
         return transactions.filter((item) => {
@@ -130,35 +150,38 @@ export default function HistoryScreen() {
     if (!user?.household_id) return;
 
     const { data, error } = await supabase
-      .from('purchase_history')
-      .select('*, product:products(*)')
-      .eq('household_id', user.household_id)
-      .order('purchased_at', { ascending: false })
+      .from("purchase_history")
+      .select("*, product:products(*)")
+      .eq("household_id", user.household_id)
+      .order("purchased_at", { ascending: false })
       .limit(200);
 
     if (error) {
-      console.error('[history] fetch error:', error.message);
+      console.error("[history] fetch error:", error.message);
     } else {
       setTransactions((data ?? []) as PurchaseTransaction[]);
     }
   }, [user?.household_id]);
 
   // ── Delete a purchase history record ───────────────────────
-  const handleDeleteTransaction = useCallback(async (id: string) => {
-    // Optimistic: remove from local state
-    setTransactions((prev) => prev.filter((t) => t.id !== id));
+  const handleDeleteTransaction = useCallback(
+    async (id: string) => {
+      // Optimistic: remove from local state
+      setTransactions((prev) => prev.filter((t) => t.id !== id));
 
-    const { error } = await supabase
-      .from('purchase_history')
-      .delete()
-      .eq('id', id);
+      const { error } = await supabase
+        .from("purchase_history")
+        .delete()
+        .eq("id", id);
 
-    if (error) {
-      console.error('[history] delete error:', error.message);
-      // Re-fetch to restore on failure
-      fetchHistory();
-    }
-  }, [fetchHistory]);
+      if (error) {
+        console.error("[history] delete error:", error.message);
+        // Re-fetch to restore on failure
+        fetchHistory();
+      }
+    },
+    [fetchHistory],
+  );
 
   useEffect(() => {
     if (!user?.household_id) return;
@@ -172,7 +195,7 @@ export default function HistoryScreen() {
       if (user?.household_id) {
         fetchHistory();
       }
-    }, [user?.household_id, fetchHistory])
+    }, [user?.household_id, fetchHistory]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -188,7 +211,7 @@ export default function HistoryScreen() {
     for (const item of filteredItems) {
       const dateKey = item.purchased_at
         ? new Date(item.purchased_at).toDateString()
-        : 'unknown';
+        : "unknown";
       const group = groups.get(dateKey) ?? [];
       group.push(item);
       groups.set(dateKey, group);
@@ -198,9 +221,9 @@ export default function HistoryScreen() {
     for (const [dateKey, items] of groups) {
       const fmt = items[0]?.purchased_at
         ? formatDateHebrew(items[0].purchased_at)
-        : { label: 'לא ידוע', isToday: false };
+        : { label: "לא ידוע", isToday: false };
       flat.push({
-        type: 'header',
+        type: "header",
         title: fmt.label,
         isToday: fmt.isToday,
         count: items.length,
@@ -225,7 +248,7 @@ export default function HistoryScreen() {
 
   // ── Main UI ────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       {/* ── Sticky header ─────────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>היסטוריית רכישות</Text>
@@ -236,45 +259,60 @@ export default function HistoryScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
-          {([
-            ['all', 'הכל'],
-            ['today', 'היום'],
-            ['week', 'השבוע'],
-            ['month', 'החודש'],
-          ] as [DateFilter, string][]).map(([key, label]) => (
+          {(
+            [
+              ["all", "הכל"],
+              ["today", "היום"],
+              ["week", "השבוע"],
+              ["month", "החודש"],
+            ] as [DateFilter, string][]
+          ).map(([key, label]) => (
             <TouchableOpacity
               key={key}
               style={[styles.pill, dateFilter === key && styles.pillActive]}
               onPress={() => setDateFilter(key)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.pillText, dateFilter === key && styles.pillTextActive]}>
+              <Text
+                style={[
+                  styles.pillText,
+                  dateFilter === key && styles.pillTextActive,
+                ]}
+              >
                 {label}
               </Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity
-            style={[styles.pill, dateFilter === 'custom' && styles.pillActive]}
+            style={[styles.pill, dateFilter === "custom" && styles.pillActive]}
             onPress={() => setShowDatePicker(true)}
             activeOpacity={0.8}
           >
             <Ionicons
               name="calendar-outline"
               size={14}
-              color={dateFilter === 'custom' ? '#fff' : dark.textSecondary}
+              color={dateFilter === "custom" ? "#fff" : dark.textSecondary}
               style={{ marginEnd: 4 }}
             />
-            <Text style={[styles.pillText, dateFilter === 'custom' && styles.pillTextActive]}>
-              {dateFilter === 'custom'
-                ? customDate.toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })
-                : 'בחר תאריך'}
+            <Text
+              style={[
+                styles.pillText,
+                dateFilter === "custom" && styles.pillTextActive,
+              ]}
+            >
+              {dateFilter === "custom"
+                ? customDate.toLocaleDateString("he-IL", {
+                    day: "numeric",
+                    month: "short",
+                  })
+                : "בחר תאריך"}
             </Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
 
       {/* Date picker modal */}
-      {showDatePicker && Platform.OS === 'web' && (
+      {showDatePicker && Platform.OS === "web" && (
         <Modal transparent animationType="fade">
           <TouchableOpacity
             style={styles.datePickerOverlay}
@@ -291,13 +329,13 @@ export default function HistoryScreen() {
               <View style={styles.webDateRow}>
                 <input
                   type="date"
-                  value={customDate.toISOString().split('T')[0]}
-                  max={new Date().toISOString().split('T')[0]}
+                  value={customDate.toISOString().split("T")[0]}
+                  max={new Date().toISOString().split("T")[0]}
                   onChange={(e: any) => {
                     const val = e.target.value;
                     if (val) {
-                      setCustomDate(new Date(val + 'T00:00:00'));
-                      setDateFilter('custom');
+                      setCustomDate(new Date(val + "T00:00:00"));
+                      setDateFilter("custom");
                     }
                   }}
                   style={{
@@ -307,8 +345,8 @@ export default function HistoryScreen() {
                     border: `1px solid ${dark.border}`,
                     backgroundColor: dark.surfaceAlt,
                     color: dark.text,
-                    width: '100%',
-                    textAlign: 'center',
+                    width: "100%",
+                    textAlign: "center",
                   }}
                 />
               </View>
@@ -316,7 +354,7 @@ export default function HistoryScreen() {
           </TouchableOpacity>
         </Modal>
       )}
-      {showDatePicker && Platform.OS === 'ios' && (
+      {showDatePicker && Platform.OS === "ios" && (
         <Modal transparent animationType="fade">
           <TouchableOpacity
             style={styles.datePickerOverlay}
@@ -338,7 +376,7 @@ export default function HistoryScreen() {
                 onChange={(event: DateTimePickerEvent, date?: Date) => {
                   if (date) {
                     setCustomDate(date);
-                    setDateFilter('custom');
+                    setDateFilter("custom");
                   }
                 }}
                 textColor={dark.text}
@@ -347,7 +385,7 @@ export default function HistoryScreen() {
           </TouchableOpacity>
         </Modal>
       )}
-      {showDatePicker && Platform.OS === 'android' && (
+      {showDatePicker && Platform.OS === "android" && (
         <DateTimePicker
           value={customDate}
           mode="date"
@@ -355,9 +393,9 @@ export default function HistoryScreen() {
           maximumDate={new Date()}
           onChange={(event: DateTimePickerEvent, date?: Date) => {
             setShowDatePicker(false);
-            if (event.type === 'set' && date) {
+            if (event.type === "set" && date) {
               setCustomDate(date);
-              setDateFilter('custom');
+              setDateFilter("custom");
             }
           }}
         />
@@ -366,22 +404,31 @@ export default function HistoryScreen() {
       {/* ── List ──────────────────────────────────────────── */}
       <FlatList
         data={listData}
-        keyExtractor={(row) => ('type' in row ? row.key : row.id)}
+        keyExtractor={(row) => ("type" in row ? row.key : row.id)}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={dark.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={dark.accent}
+          />
         }
         renderItem={({ item: row }) => {
           // ── Date group header ──
-          if ('type' in row) {
+          if ("type" in row) {
             return (
               <View style={styles.sectionHeader}>
                 <Ionicons
-                  name={row.isToday ? 'today-outline' : 'calendar-outline'}
+                  name={row.isToday ? "today-outline" : "calendar-outline"}
                   size={15}
                   color={row.isToday ? dark.accent : dark.textSecondary}
                 />
-                <Text style={[styles.sectionTitle, row.isToday && styles.sectionTitleToday]}>
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    row.isToday && styles.sectionTitleToday,
+                  ]}
+                >
                   {row.title}
                 </Text>
                 <View style={styles.sectionBadge}>
@@ -392,34 +439,48 @@ export default function HistoryScreen() {
           }
 
           // ── Purchase item card ──
-          const productName = row.product?.name ?? '';
-          const category = row.product?.category ?? 'ללא קטגוריה';
+          const productName = row.product?.name ?? "";
+          const category = normalizeCategory(row.product?.category ?? null);
           const time = row.purchased_at
-            ? new Date(row.purchased_at).toLocaleTimeString('he-IL', {
-                hour: '2-digit',
-                minute: '2-digit',
+            ? new Date(row.purchased_at).toLocaleTimeString("he-IL", {
+                hour: "2-digit",
+                minute: "2-digit",
               })
-            : '';
+            : "";
 
           const isAdded = addedItemId === row.id;
           const isDeleted = deletedItemId === row.id;
 
           return (
             <View style={styles.itemCard}>
-              <View style={[styles.itemCardInner, isDeleted && styles.itemCardDeleted]}>
+              <View
+                style={[
+                  styles.itemCardInner,
+                  isDeleted && styles.itemCardDeleted,
+                ]}
+              >
                 {/* Delete button */}
                 <TouchableOpacity
-                  style={[styles.deleteBtn, isDeleted && styles.deleteBtnDeleted]}
+                  style={[
+                    styles.deleteBtn,
+                    isDeleted && styles.deleteBtnDeleted,
+                  ]}
                   onPress={() => {
                     const doDelete = () => {
                       setDeletedItemId(row.id);
                       setTimeout(() => {
                         handleDeleteTransaction(row.id);
-                        setDeletedItemId((prev) => (prev === row.id ? null : prev));
+                        setDeletedItemId((prev) =>
+                          prev === row.id ? null : prev,
+                        );
                       }, 800);
                     };
-                    if (Platform.OS === 'web') {
-                      if (window.confirm(`למחוק את "${productName}" מהיסטוריית הרכישות?\n\nשים לב: מחיקה תשפיע על חיזוי הקנייה הבאה.`)) {
+                    if (Platform.OS === "web") {
+                      if (
+                        window.confirm(
+                          `למחוק את "${productName}" מהיסטוריית הרכישות?\n\nשים לב: מחיקה תשפיע על חיזוי הקנייה הבאה.`,
+                        )
+                      ) {
                         doDelete();
                       }
                     } else {
@@ -427,8 +488,12 @@ export default function HistoryScreen() {
                         `🗑️ מחיקת ${productName}`,
                         `האם למחוק את "${productName}" מהיסטוריית הרכישות?\n\nשים לב: מחיקה תשפיע על חיזוי הקנייה הבאה.`,
                         [
-                          { text: 'לא, השאר', style: 'cancel' },
-                          { text: 'כן, מחק', style: 'destructive', onPress: doDelete },
+                          { text: "לא, השאר", style: "cancel" },
+                          {
+                            text: "כן, מחק",
+                            style: "destructive",
+                            onPress: doDelete,
+                          },
                         ],
                       );
                     }
@@ -436,9 +501,9 @@ export default function HistoryScreen() {
                   activeOpacity={0.6}
                 >
                   <Ionicons
-                    name={isDeleted ? 'close-circle' : 'trash-outline'}
+                    name={isDeleted ? "close-circle" : "trash-outline"}
                     size={isDeleted ? 18 : 16}
-                    color={isDeleted ? '#fff' : dark.textMuted}
+                    color={isDeleted ? "#fff" : dark.textMuted}
                   />
                 </TouchableOpacity>
 
@@ -450,12 +515,18 @@ export default function HistoryScreen() {
                       <Text style={styles.itemQty}>{` ×${row.quantity}`}</Text>
                     )}
                   </Text>
-                  <Text style={[styles.itemMeta, isDeleted && styles.itemMetaDeleted]} numberOfLines={1}>
+                  <Text
+                    style={[
+                      styles.itemMeta,
+                      isDeleted && styles.itemMetaDeleted,
+                    ]}
+                    numberOfLines={1}
+                  >
                     {isDeleted
-                      ? '🗑️ נמחק מההיסטוריה...'
+                      ? "🗑️ נמחק מההיסטוריה..."
                       : isAdded
-                        ? '✓ נוסף לעגלה'
-                        : [category, time].filter(Boolean).join(' • ')}
+                        ? "✓ נוסף לעגלה"
+                        : [category, time].filter(Boolean).join(" • ")}
                   </Text>
                 </View>
 
@@ -464,24 +535,35 @@ export default function HistoryScreen() {
                   style={[styles.addCartBtn, isAdded && styles.addCartBtnAdded]}
                   onPress={() => {
                     if (!row.product_id || !user?.household_id) return;
-                    const result = useShoppingListStore.getState().addItem(
-                      row.product_id,
-                      user.household_id,
-                      row.quantity,
-                      row.product,
-                    );
+                    const result = useShoppingListStore
+                      .getState()
+                      .addItem(
+                        row.product_id,
+                        user.household_id,
+                        row.quantity,
+                        row.product,
+                      );
                     setAddedItemId(row.id);
-                    setTimeout(() => setAddedItemId((prev) => (prev === row.id ? null : prev)), 1500);
-                    if (result === 'exists' && Platform.OS !== 'web') {
-                      Alert.alert('כבר ברשימה', `${productName} כבר נמצא ברשימה`);
+                    setTimeout(
+                      () =>
+                        setAddedItemId((prev) =>
+                          prev === row.id ? null : prev,
+                        ),
+                      1500,
+                    );
+                    if (result === "exists" && Platform.OS !== "web") {
+                      Alert.alert(
+                        "כבר ברשימה",
+                        `${productName} כבר נמצא ברשימה`,
+                      );
                     }
                   }}
                   activeOpacity={0.6}
                 >
                   <Ionicons
-                    name={isAdded ? 'checkmark-circle' : 'cart-outline'}
+                    name={isAdded ? "checkmark-circle" : "cart-outline"}
                     size={18}
-                    color={isAdded ? '#fff' : dark.accent}
+                    color={isAdded ? "#fff" : dark.accent}
                   />
                 </TouchableOpacity>
               </View>
@@ -492,9 +574,7 @@ export default function HistoryScreen() {
           <View style={styles.emptyContainer}>
             <Ionicons name="receipt-outline" size={56} color={dark.textMuted} />
             <Text style={styles.emptyText}>אין היסטוריית רכישות</Text>
-            <Text style={styles.emptySubtext}>
-              כל רכישה שתבצעו תירשם כאן
-            </Text>
+            <Text style={styles.emptySubtext}>כל רכישה שתבצעו תירשם כאן</Text>
           </View>
         }
       />
@@ -510,8 +590,8 @@ const styles = StyleSheet.create({
   },
   centered: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: dark.background,
   },
 
@@ -523,24 +603,23 @@ const styles = StyleSheet.create({
     backgroundColor: dark.background,
     borderBottomWidth: 1,
     borderBottomColor: dark.border,
-
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: "800",
     color: dark.text,
     marginBottom: 12,
   },
   filterRow: {
-    flexDirection: 'row',
-    minWidth: '100%',
-    justifyContent: 'flex-start',
+    flexDirection: "row",
+    minWidth: "100%",
+    justifyContent: "flex-start",
     gap: 8,
     paddingBottom: 2,
   },
   pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -555,18 +634,18 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 13,
     color: dark.textSecondary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   pillTextActive: {
-    color: '#fff',
-    fontWeight: '700',
+    color: "#fff",
+    fontWeight: "700",
   },
 
   // ── Date picker ─────────────────────────────────────────────
   datePickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.65)",
+    justifyContent: "flex-end",
   },
   datePickerContainer: {
     backgroundColor: dark.surface,
@@ -575,9 +654,9 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   datePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
@@ -585,12 +664,12 @@ const styles = StyleSheet.create({
   },
   datePickerTitle: {
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.text,
   },
   datePickerDone: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.accent,
   },
   webDateRow: {
@@ -605,8 +684,8 @@ const styles = StyleSheet.create({
 
   // ── Section header ──────────────────────────────────────────
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 20,
     paddingTop: 18,
@@ -614,7 +693,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.textSecondary,
     letterSpacing: 0.3,
   },
@@ -630,7 +709,7 @@ const styles = StyleSheet.create({
   },
   sectionBadgeText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.textMuted,
   },
 
@@ -640,9 +719,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   itemCardInner: {
-    flexDirection: 'row',
-    direction: 'ltr',
-    alignItems: 'center',
+    flexDirection: "row",
+    direction: "ltr",
+    alignItems: "center",
     backgroundColor: dark.surface,
     borderRadius: 14,
     paddingVertical: 10,
@@ -655,34 +734,34 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 10,
     backgroundColor: dark.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginEnd: 10,
   },
   deleteBtnDeleted: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: "#e74c3c",
   },
   itemCardDeleted: {
     opacity: 0.6,
-    borderColor: 'rgba(231,76,60,0.4)',
+    borderColor: "rgba(231,76,60,0.4)",
   },
   itemMetaDeleted: {
-    color: '#e74c3c',
+    color: "#e74c3c",
   },
   itemInfo: {
     flex: 1,
-    direction: 'rtl',
+    direction: "rtl",
   },
   itemName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.text,
     lineHeight: 18,
   },
   itemQty: {
     fontSize: 13,
     color: dark.accent,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   itemMeta: {
     fontSize: 11,
@@ -693,9 +772,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(139,159,232,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(139,159,232,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
     marginStart: 8,
   },
   addCartBtnAdded: {
@@ -704,14 +783,14 @@ const styles = StyleSheet.create({
 
   // ── Empty state ─────────────────────────────────────────────
   emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingTop: 100,
     gap: 8,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     color: dark.text,
     marginTop: 8,
   },

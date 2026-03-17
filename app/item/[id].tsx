@@ -3,27 +3,31 @@ import { useAuth } from "@/src/hooks/useAuth";
 import { supabase } from "@/src/lib/supabase";
 import { useShoppingListStore } from "@/src/store/shoppingListStore";
 import type { Database } from "@/src/types/database";
-import { CATEGORIES, getSmartDefaultDays } from "@/src/utils/categoryDetector";
+import {
+    CATEGORIES,
+    getSmartDefaultDays,
+    normalizeCategory,
+} from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -98,7 +102,9 @@ export default function ItemDetailScreen() {
       setItem(sl);
       setProduct(sl.product);
       setEditName(sl.product?.name ?? "");
-      setEditCategory(sl.product?.category ?? null);
+      setEditCategory(
+        sl.product?.category ? normalizeCategory(sl.product.category) : null,
+      );
       setEditQuantity(sl.quantity);
 
       // 2. Fetch inventory rule for this product (time-to-buy data)
