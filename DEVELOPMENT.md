@@ -100,15 +100,18 @@ Agala/
 │   ├── components/
 │   │   ├── AddProductSheet.tsx   # Add product modal — search, recent, quantity picker
 │   │   ├── CategorySheet.tsx     # Category picker bottom sheet — 16 categories with emoji, used for new product & edit flows
+│   │   ├── RecommendationLine.tsx # AI recommendation cards — horizontal scroll, urgency colors, animated dismiss
 │   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback, purchased alignment spacer
 │   │   ├── SnoozeSheet.tsx       # Snooze action sheet
-│   │   └── SuggestionChips.tsx   # AI suggestion chips
+│   │   └── WhatsNewModal.tsx     # In-app changelog modal — shows on version update
 │   ├── hooks/
-│   │   └── useAuth.ts           # Auth state — session, profile fetch/create, sign-out, refreshProfile
+│   │   ├── useAuth.ts           # Auth state — session, profile fetch/create, sign-out, refreshProfile
+│   │   └── useSpeechRecognition.ts # Voice input hook — expo-speech-recognition, Hebrew, graceful fallback
 │   ├── lib/
 │   │   └── supabase.ts          # Supabase client — AsyncStorage, SSR-safe
 │   ├── store/
-│   │   └── shoppingListStore.ts  # Zustand store — optimistic updates, realtime, offline queue
+│   │   ├── appSettingsStore.ts   # App settings — Zustand + AsyncStorage (showRecommendations, showDepletion, autoAddEnabled)
+│   │   └── shoppingListStore.ts  # Zustand store — optimistic updates, realtime, recommendations, depletion tracking
 │   ├── types/
 │   │   └── database.ts          # Auto-generated Supabase DB types
 │   └── utils/
@@ -238,7 +241,7 @@ All colors come from `constants/theme.ts` → `dark` object. No hardcoded colors
 
 | File                                  | Lines  | Description                                                                                                     |
 | :------------------------------------ | :----- | :-------------------------------------------------------------------------------------------------------------- |
-| `src/store/shoppingListStore.ts`      | ~500   | Core state: items, suggestions, optimistic CRUD, realtime, purchase_history logging                             |
+| `src/store/shoppingListStore.ts`      | ~500   | Core state: items, recommendations, optimistic CRUD, realtime, purchase_history logging                         |
 | `app/item/[id].tsx`                   | ~1760  | Item detail: AI/manual buy cycle, EMA calc, category picker, purchase stats, clone-on-edit                      |
 | `app/(tabs)/index.tsx`                | ~1170  | Main list: sort chips (name/category/recent), CategorySheet, counter badges, collapsible sections               |
 | `app/(tabs)/settings.tsx`             | ~650   | Profile editing (refreshProfile), household management, import (file/clipboard/manual)                          |

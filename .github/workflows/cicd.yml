@@ -90,6 +90,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -135,6 +137,9 @@ jobs:
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: eas build --platform android --profile production --non-interactive
 
+      - name: Generate Google Play release notes
+        run: node scripts/generate-release-notes.js "${{ needs.version.outputs.number }}" > /dev/null
+
       - name: Write Google Service Account key
         if: env.GOOGLE_SERVICE_ACCOUNT_KEY != ''
         env:
@@ -156,11 +161,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          OUTPUT=$(node scripts/generate-release-notes.js "${{ needs.version.outputs.number }}")
+          HTML=$(echo "$OUTPUT" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).html)")
+          echo "html<<NOTESEOF" >> "$GITHUB_OUTPUT"
+          echo "$HTML" >> "$GITHUB_OUTPUT"
+          echo "NOTESEOF" >> "$GITHUB_OUTPUT"
 
       - name: Bump version in source
         run: |
@@ -178,11 +194,24 @@ jobs:
             fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
           "
 
-      - name: Commit version bump & create tag
+      - name: Commit version bump, reset release notes & create tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json app.json
+          # Reset RELEASE_NOTES_NEXT.md for the next cycle
+          cat > RELEASE_NOTES_NEXT.md << 'RESET'
+          # Release Notes — Next Version
+
+          > This file accumulates user-facing release notes (Hebrew) for the upcoming release.
+          > Updated by Copilot before each PR merge using the `pr-release-summary` skill.
+          > CI reads this file to generate Google Play, email, and in-app release notes.
+          > After a release is published, this file is reset to empty.
+
+          ---
+
+          <!-- Add notes below this line — newest on top -->
+          RESET
+          git add package.json app.json RELEASE_NOTES_NEXT.md
           git diff --cached --quiet || git commit -m "chore: bump version to ${{ needs.version.outputs.number }} [skip ci]"
           git tag ${{ needs.version.outputs.tag }}
           git push origin main --tags
@@ -213,11 +242,7 @@ jobs:
               <hr style="border-color: #2a2a3e; margin: 24px 0;" />
 
               <h2 style="color: #e0e0f0;">🎉 מה חדש בגרסה הזו?</h2>
-              <p style="color: #c0c0d8; line-height: 1.7;">
-                הגרסה החדשה של עגלה כוללת שיפורים משמעותיים בממשק המשתמש, תמיכה משופרת ב-RTL,
-                מיון חכם של מוצרים לפי שם / קטגוריה / שונה לאחרונה, בחירת קטגוריה ידנית עבור מוצרים חדשים,
-                ותיקון באג קריטי בשמירת מוצרים גלובליים.
-              </p>
+              ${{ steps.notes.outputs.html }}
 
               <hr style="border-color: #2a2a3e; margin: 24px 0;" />
 

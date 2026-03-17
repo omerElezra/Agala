@@ -1,18 +1,25 @@
 import { dark } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    FlatList,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  FlatList,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { supabase } from "../lib/supabase";
+import { useAppSettingsStore } from "../store/appSettingsStore";
 import { useShoppingListStore } from "../store/shoppingListStore";
 import type { Database } from "../types/database";
-import { detectCategory } from "../utils/categoryDetector";
+import {
+  detectCategory,
+  isValidCategory,
+  normalizeCategory,
+} from "../utils/categoryDetector";
 
 type ProductRow = Database["public"]["Tables"]["products"]["Row"];
 
@@ -38,6 +45,15 @@ export function AddProductSheet({
   const [existsMessage, setExistsMessage] = useState<string | null>(null);
   const [addToCart, setAddToCart] = useState(false);
   const addItem = useShoppingListStore((s) => s.addItem);
+  const showAddToCartOption = useAppSettingsStore((s) => s.showAddToCartOption);
+
+  // ── Voice input ────────────────────────────────────────────
+  const {
+    isAvailable: voiceAvailable,
+    isListening,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition((text) => setQuery(text));
 
   // ── Fetch recently purchased products ──────────────────────
   useEffect(() => {
@@ -145,6 +161,20 @@ export function AddProductSheet({
 
     if (existingProduct) {
       productToAdd = existingProduct;
+      // Fix legacy category if needed
+      if (
+        existingProduct.category &&
+        !isValidCategory(existingProduct.category)
+      ) {
+        const fixed = normalizeCategory(existingProduct.category);
+        if (fixed !== "ללא קטגוריה") {
+          await supabase
+            .from("products")
+            .update({ category: fixed })
+            .eq("id", existingProduct.id);
+          productToAdd = { ...existingProduct, category: fixed };
+        }
+      }
     } else {
       // Try to detect category automatically
       let category: string | null = detectCategory(trimmed);
@@ -160,7 +190,8 @@ export function AddProductSheet({
             .not("category", "is", null)
             .limit(1)
             .maybeSingle();
-          if (similar?.category) category = similar.category;
+          if (similar?.category && isValidCategory(similar.category))
+            category = similar.category;
         }
       }
 
@@ -223,28 +254,47 @@ export function AddProductSheet({
         </TouchableOpacity>
       </View>
 
-      {/* Search input */}
-      <TextInput
-        style={styles.input}
-        placeholder="...חפש מוצר"
-        placeholderTextColor={dark.placeholder}
-        value={query}
-        onChangeText={setQuery}
-        autoFocus
-      />
+      {/* Search input + mic */}
+      <View style={styles.searchRow}>
+        <TextInput
+          style={styles.input}
+          placeholder="...חפש מוצר"
+          placeholderTextColor={dark.placeholder}
+          value={query}
+          onChangeText={setQuery}
+          autoFocus
+        />
+        {voiceAvailable && (
+          <TouchableOpacity
+            style={[styles.micBtn, isListening && styles.micBtnActive]}
+            onPress={isListening ? stopListening : startListening}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={isListening ? "mic" : "mic-outline"}
+              size={24}
+              color={isListening ? "#fff" : dark.accent}
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {isListening && <Text style={styles.listeningText}>🎤 מקשיב...</Text>}
 
       {isSearching && <Text style={styles.searching}>מחפש...</Text>}
 
-      {/* Add to cart toggle */}
-      <View style={styles.toggleRow}>
-        <Text style={styles.toggleLabel}>הוסף לעגלת הקניות</Text>
-        <Switch
-          value={addToCart}
-          onValueChange={setAddToCart}
-          trackColor={{ false: dark.input, true: dark.success }}
-          thumbColor="#fff"
-        />
-      </View>
+      {/* Add to cart toggle — only if enabled in settings */}
+      {showAddToCartOption && (
+        <View style={styles.toggleRow}>
+          <Text style={styles.toggleLabel}>הוסף לעגלת הקניות</Text>
+          <Switch
+            value={addToCart}
+            onValueChange={setAddToCart}
+            trackColor={{ false: dark.input, true: dark.success }}
+            thumbColor="#fff"
+          />
+        </View>
+      )}
 
       {/* "Already in cart" message */}
       {existsMessage && (
@@ -341,7 +391,9 @@ export function AddProductSheet({
             onPress={() => handleSelect(item)}
           >
             {item.category && (
-              <Text style={styles.resultCat}>{item.category}</Text>
+              <Text style={styles.resultCat}>
+                {normalizeCategory(item.category)}
+              </Text>
             )}
             <Text style={styles.resultName}>{item.name}</Text>
           </TouchableOpacity>
@@ -391,9 +443,7 @@ const styles = StyleSheet.create({
     fontWeight: "300",
   },
   input: {
-    marginStart: 16,
-    marginEnd: 16,
-    marginVertical: 16,
+    flex: 1,
     padding: 14,
     fontSize: 16,
     backgroundColor: dark.input,
@@ -401,6 +451,35 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: dark.inputBorder,
     color: dark.inputText,
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginStart: 16,
+    marginEnd: 16,
+    marginVertical: 16,
+    gap: 10,
+  },
+  micBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: dark.surface,
+    borderWidth: 1.5,
+    borderColor: dark.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  micBtnActive: {
+    backgroundColor: dark.error,
+    borderColor: dark.error,
+  },
+  listeningText: {
+    textAlign: "center",
+    color: dark.accent,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
   },
   searching: {
     textAlign: "center",

@@ -11,7 +11,7 @@
 //        last_purchased_at + (ema_days * quantity_modifier) <= now()
 //   2. Evaluate confidence_score:
 //        >= 85  → Auto-Add to shopping_list (status = 'active')
-//        50-84  → Mark as 'suggest_only' (client shows in Suggestions)
+//        50-84  → Mark as 'suggest_only' (used by recommendation engine)
 //        < 50   → 'manual_only' (still learning, no action)
 //   3. Recalculate EMA for products purchased since last run.
 // ─────────────────────────────────────────────────────────────
@@ -127,11 +127,10 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
     // Find all purchases for this household+product that happened
     // AFTER the stored last_purchased_at, ordered chronologically.
     const { data: purchases, error: purchaseError } = await supabase
-      .from("shopping_list")
+      .from("purchase_history")
       .select("purchased_at, quantity")
       .eq("household_id", rule.household_id)
       .eq("product_id", rule.product_id)
-      .eq("status", "purchased")
       .gt("purchased_at", rule.last_purchased_at!)
       .order("purchased_at", { ascending: true });
 
@@ -159,11 +158,10 @@ async function recalculateEMA(stats: Record<string, number>): Promise<void> {
     let previousQuantity = 1;
     {
       const { data: prevPurch } = await supabase
-        .from("shopping_list")
+        .from("purchase_history")
         .select("quantity")
         .eq("household_id", rule.household_id)
         .eq("product_id", rule.product_id)
-        .eq("status", "purchased")
         .lte("purchased_at", rule.last_purchased_at!)
         .order("purchased_at", { ascending: false })
         .limit(1)
@@ -260,13 +258,12 @@ async function evaluateRulesAndAct(
   for (const rule of rules as InventoryRule[]) {
     // Calculate the predicted next-purchase date.
     // ema_days is always per 1 item — multiply by last qty for actual interval.
-    // We fetch the most recent purchase to get the quantity.
+    // We fetch the most recent purchase from purchase_history to get the quantity.
     const { data: lastPurchase } = await supabase
-      .from("shopping_list")
+      .from("purchase_history")
       .select("quantity")
       .eq("household_id", rule.household_id)
       .eq("product_id", rule.product_id)
-      .eq("status", "purchased")
       .order("purchased_at", { ascending: false })
       .limit(1)
       .single();
@@ -346,7 +343,7 @@ async function evaluateRulesAndAct(
     // ── Confidence 50-84 → Suggest ───────────────────────────
     else if (rule.confidence_score >= CONFIDENCE_SUGGEST) {
       // Ensure the rule is flagged as suggest_only so the client
-      // picks it up in the Suggestions UI section.
+      // picks it up in the Recommendation Line.
       if (rule.auto_add_status !== "suggest_only") {
         const { error: updateError } = await supabase
           .from("household_inventory_rules")

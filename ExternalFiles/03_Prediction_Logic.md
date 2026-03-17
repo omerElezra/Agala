@@ -28,7 +28,7 @@ The `confidence_score` (0-100) dictates how the app interacts with the user to p
 
 - **Thresholds:**
   - **Score >= 85:** `Auto-Add` -> The item is automatically inserted into the active `shopping_list` table.
-  - **Score 50-84:** `Suggest` -> The item appears in the "Discovery/Suggestions" UI.
+  - **Score 50-84:** `Suggest` -> The item appears in the Recommendation Line.
   - **Score < 50:** `Manual` -> The algorithm is still learning; no action taken.
 - **Positive Signals (Score Increases):**
   - Ticking 'V' (Purchasing) an item within a 15% variance of the predicted EMA interval adds +10 to the score.
@@ -44,7 +44,7 @@ A `pg_cron` job triggers a Supabase Edge Function every night at 02:00 local tim
 1. Fetch all rows from `household_inventory_rules` where `last_purchased_at + (ema_days * quantity_modifier) <= NOW()`.
 2. Check the `confidence_score` for each matched row.
 3. If >= 85, insert the `product_id` into `shopping_list` with status `active` and flag `auto_added = true`.
-4. If 50-84, flag the item for the "Suggestions" view on the client's home screen.
+4. If 50-84, flag the item for the Recommendation Line on the client’s home screen.
 
 ## 5. Edge Cases Logic
 

@@ -1,12 +1,13 @@
 import { dark } from "@/constants/theme";
+import { normalizeCategory } from "@/src/utils/categoryDetector";
 import { useRouter } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
-  Animated,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import type { ShoppingItem } from "../store/shoppingListStore";
@@ -32,7 +33,7 @@ export function ShoppingListItem({
   const reactivateItem = useShoppingListStore((s) => s.reactivateItem);
   const isPurchased = item.status === "purchased";
   const productName = item.product?.name ?? "";
-  const subtitle = item.product?.category ?? "";
+  const subtitle = normalizeCategory(item.product?.category ?? null);
 
   // ── Animated values ────────────────────────────────────────
   const flashAnim = useRef(new Animated.Value(0)).current;

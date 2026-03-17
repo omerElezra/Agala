@@ -23,6 +23,7 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { dark } from "@/constants/theme";
+import { WhatsNewModal } from "@/src/components/WhatsNewModal";
 import { useAuth } from "@/src/hooks/useAuth";
 
 export {
@@ -134,7 +135,9 @@ function RootLayoutNav() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
         <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, headerTitleAlign: "center" }}>
+        <Stack
+          screenOptions={{ headerShown: false, headerTitleAlign: "center" }}
+        >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="auth"
@@ -165,6 +168,8 @@ function RootLayoutNav() {
         </Stack>
         {/* Redirect based on auth state */}
         {session ? <Redirect href="/(tabs)" /> : <Redirect href="/auth" />}
+        {/* Show "What's New" popup after version update */}
+        {session && <WhatsNewModal />}
       </ThemeProvider>
     </GestureHandlerRootView>
   );

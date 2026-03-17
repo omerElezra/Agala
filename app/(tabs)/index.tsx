@@ -1,22 +1,32 @@
 import { dark } from "@/constants/theme";
 import { CategorySheet } from "@/src/components/CategorySheet";
+import { RecommendationLine } from "@/src/components/RecommendationLine";
 import { ShoppingListItem } from "@/src/components/ShoppingListItem";
 import { SnoozeSheet } from "@/src/components/SnoozeSheet";
-import { SuggestionChips } from "@/src/components/SuggestionChips";
 import { useAuth } from "@/src/hooks/useAuth";
+import { useSpeechRecognition } from "@/src/hooks/useSpeechRecognition";
 import { supabase } from "@/src/lib/supabase";
+import { useAppSettingsStore } from "@/src/store/appSettingsStore";
 import {
   useShoppingListStore,
+  type RecommendationItem,
   type ShoppingItem,
-  type SuggestionItem,
 } from "@/src/store/shoppingListStore";
-import { CATEGORY_EMOJIS, detectCategory } from "@/src/utils/categoryDetector";
+import {
+  CATEGORY_EMOJIS,
+  detectCategory,
+  isValidCategory,
+  normalizeCategory,
+} from "@/src/utils/categoryDetector";
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+import { File as ExpoFile } from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
@@ -27,7 +37,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 type CartSortMode = "name" | "category" | "recent";
-type AllProductsSortMode = "name" | "category" | "recent";
+type AllProductsSortMode = "name" | "category" | "recent" | "depletion";
 
 const CART_SORT_OPTIONS: { key: CartSortMode; label: string }[] = [
   { key: "recent", label: "שונה לאחרונה" },
@@ -39,7 +49,19 @@ const ALL_SORT_OPTIONS: { key: AllProductsSortMode; label: string }[] = [
   { key: "recent", label: "שונה לאחרונה" },
   { key: "name", label: "שם" },
   { key: "category", label: "קטגוריה" },
+  { key: "depletion", label: "עומד להיגמר" },
 ];
+
+/** Hebrew depletion title + color — how close to running out */
+function getDepletionLabel(pct: number): { title: string; color: string } {
+  if (pct >= 100) return { title: "לך תקנה", color: "rgba(239, 68, 68, 0.7)" }; // Red
+  if (pct >= 80) return { title: "תכף נגמר", color: "rgba(249, 115, 22, 0.7)" }; // Orange
+  if (pct >= 60)
+    return { title: "חצי קלאץ'", color: "rgba(251, 191, 36, 0.7)" }; // Yellow
+  if (pct >= 30) return { title: "יש, אל תדאג", color: dark.textSecondary };
+  if (pct >= 1) return { title: "יש בשפע", color: dark.textSecondary };
+  return { title: "הרגע קנינו", color: dark.textMuted };
+}
 
 type ListRow =
   | ShoppingItem
@@ -48,7 +70,8 @@ type ListRow =
   | { type: "divider"; key: string }
   | { type: "all-products-header"; key: string }
   | { type: "all-product-category"; title: string; emoji: string; key: string }
-  | { type: "all-product-item"; item: ShoppingItem; key: string };
+  | { type: "all-product-item"; item: ShoppingItem; key: string }
+  | { type: "recommendations"; key: string };
 
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuth();
@@ -56,7 +79,8 @@ export default function HomeScreen() {
 
   const {
     items,
-    suggestions,
+    recommendations,
+    depletionPercentMap,
     isLoading,
     autoAddedProductIds,
     fetchList,
@@ -64,11 +88,13 @@ export default function HomeScreen() {
     checkOffItem,
     snoozeItem,
     removeItem,
-    acceptSuggestion,
+    acceptRecommendation,
+    skipRecommendation,
     flushOfflineQueue,
   } = useShoppingListStore();
 
   const addItem = useShoppingListStore((s) => s.addItem);
+  const { showRecommendations, showDepletion } = useAppSettingsStore();
 
   const [snoozeTarget, setSnoozeTarget] = useState<ShoppingItem | null>(null);
   const [categoryTarget, setCategoryTarget] = useState<ShoppingItem | null>(
@@ -80,10 +106,162 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showAllProducts, setShowAllProducts] = useState(true);
+  const [showCart, setShowCart] = useState(true);
   const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
   const [cartSort, setCartSort] = useState<CartSortMode>("recent");
+  const [cartSortAsc, setCartSortAsc] = useState(true);
   const [allProductsSort, setAllProductsSort] =
     useState<AllProductsSortMode>("recent");
+  const [allProductsSortAsc, setAllProductsSortAsc] = useState(true);
+
+  // ── Bulk import ────────────────────────────────────────────
+  const [showImportSheet, setShowImportSheet] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [manualText, setManualText] = useState("");
+  const [importBanner, setImportBanner] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
+
+  // ── Voice input ────────────────────────────────────────────
+  const {
+    isAvailable: voiceAvailable,
+    isListening,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition((text) => setSearchQuery(text));
+
+  // ── Bulk import helpers ─────────────────────────────────────
+  const showImportBanner = (text: string, type: "success" | "error") => {
+    setImportBanner({ text, type });
+    setTimeout(() => setImportBanner(null), 3_000);
+  };
+
+  const handleBulkImport = useCallback(
+    async (text: string) => {
+      if (!user?.household_id) return;
+      setImporting(true);
+      try {
+        const lines = text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0);
+
+        const firstLine = lines[0]?.toLowerCase() ?? "";
+        const startIdx =
+          firstLine.includes("name") ||
+          firstLine.includes("\u05e9\u05dd") ||
+          firstLine.includes("product")
+            ? 1
+            : 0;
+
+        let added = 0;
+        let skipped = 0;
+
+        for (let i = startIdx; i < lines.length; i++) {
+          const parts = lines[i]!.split(",").map((p) =>
+            p.trim().replace(/^"|"$/g, ""),
+          );
+          const name = parts[0];
+          if (!name || name.length < 1) continue;
+
+          const quantity = parts[1] ? parseInt(parts[1], 10) || 1 : 1;
+          const category = detectCategory(name);
+
+          const { data: existingProduct } = await supabase
+            .from("products")
+            .select("id")
+            .eq("name", name)
+            .maybeSingle();
+
+          let productId: string;
+          if (existingProduct) {
+            productId = existingProduct.id;
+          } else {
+            const { data: newProduct, error: prodErr } = await supabase
+              .from("products")
+              .insert({ name, category })
+              .select("id")
+              .single();
+
+            if (prodErr || !newProduct) {
+              skipped++;
+              continue;
+            }
+            productId = newProduct.id;
+          }
+
+          const result = addItem(productId, user.household_id, quantity);
+          if (result === "added") {
+            added++;
+          } else {
+            skipped++;
+          }
+        }
+
+        await fetchList(user.household_id);
+        const msg =
+          `\u2705 \u05d9\u05d5\u05d1\u05d0\u05d5 ${added} \u05e4\u05e8\u05d9\u05d8\u05d9\u05dd` +
+          (skipped > 0 ? ` (\u05d3\u05d5\u05dc\u05d2\u05d5 ${skipped})` : "");
+        showImportBanner(msg, "success");
+      } catch (err) {
+        console.error("[bulk-import]", err);
+        showImportBanner(
+          "\u05e9\u05d2\u05d9\u05d0\u05d4 \u05d1\u05d9\u05d9\u05d1\u05d5\u05d0",
+          "error",
+        );
+      } finally {
+        setImporting(false);
+      }
+    },
+    [user, addItem, fetchList],
+  );
+
+  const handlePickFile = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "text/csv",
+          "text/plain",
+          "text/comma-separated-values",
+          "application/csv",
+        ],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const file = new ExpoFile(asset.uri);
+      const content = await file.text();
+      if (content && content.trim().length > 0) {
+        handleBulkImport(content);
+      } else {
+        showImportBanner(
+          "\u05d4\u05e7\u05d5\u05d1\u05e5 \u05e8\u05d9\u05e7",
+          "error",
+        );
+      }
+    } catch (err) {
+      console.error("[file-pick]", err);
+      showImportBanner(
+        "\u05e9\u05d2\u05d9\u05d0\u05d4 \u05d1\u05d1\u05d7\u05d9\u05e8\u05ea \u05d4\u05e7\u05d5\u05d1\u05e5",
+        "error",
+      );
+    }
+  }, [handleBulkImport]);
+
+  const handleManualImport = useCallback(() => {
+    if (!manualText.trim()) {
+      showImportBanner(
+        "\u05d4\u05d6\u05d9\u05e0\u05d5 \u05dc\u05e4\u05d7\u05d5\u05ea \u05de\u05d5\u05e6\u05e8 \u05d0\u05d7\u05d3",
+        "error",
+      );
+      return;
+    }
+    handleBulkImport(manualText);
+    setManualText("");
+    setShowManualInput(false);
+  }, [manualText, handleBulkImport]);
 
   // ── Add item directly from search (no-match case) ──────────
   const handleAddFromSearch = useCallback(async () => {
@@ -111,6 +289,18 @@ export default function HomeScreen() {
 
       let productToAdd = existingProduct;
 
+      // Fix legacy category on existing product if needed
+      if (productToAdd?.category && !isValidCategory(productToAdd.category)) {
+        const fixed = normalizeCategory(productToAdd.category);
+        if (fixed !== "ללא קטגוריה") {
+          await supabase
+            .from("products")
+            .update({ category: fixed })
+            .eq("id", productToAdd.id);
+          productToAdd = { ...productToAdd, category: fixed };
+        }
+      }
+
       if (!productToAdd) {
         let category: string | null = detectCategory(trimmed);
 
@@ -124,7 +314,8 @@ export default function HomeScreen() {
               .not("category", "is", null)
               .limit(1)
               .maybeSingle();
-            if (similar?.category) category = similar.category;
+            if (similar?.category && isValidCategory(similar.category))
+              category = similar.category;
           }
         }
 
@@ -179,7 +370,9 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       setCartSort("recent");
+      setCartSortAsc(true);
       setAllProductsSort("recent");
+      setAllProductsSortAsc(true);
     }, []),
   );
 
@@ -347,11 +540,18 @@ export default function HomeScreen() {
     [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem],
   );
 
-  const handleAcceptSuggestion = useCallback(
-    (suggestion: SuggestionItem) => {
-      acceptSuggestion(suggestion);
+  const handleAcceptRecommendation = useCallback(
+    (rec: RecommendationItem) => {
+      acceptRecommendation(rec);
     },
-    [acceptSuggestion],
+    [acceptRecommendation],
+  );
+
+  const handleSkipRecommendation = useCallback(
+    (rec: RecommendationItem) => {
+      skipRecommendation(rec);
+    },
+    [skipRecommendation],
   );
 
   // ── Active items in cart lookup (for "בעגלה" badge) ────────
@@ -367,6 +567,11 @@ export default function HomeScreen() {
   const listData = useMemo<ListRow[]>(() => {
     const data: ListRow[] = [];
 
+    // Recommendations row (before sections)
+    if (showRecommendations && recommendations.length > 0) {
+      data.push({ type: "recommendations", key: "recs" });
+    }
+
     // Section 1: Cart items ("עגלה שלי")
     if (filteredActive.length > 0) {
       data.push({
@@ -375,46 +580,59 @@ export default function HomeScreen() {
         emoji: "",
         key: "h-cart",
       });
-      // Sort cart items based on selected mode
-      if (cartSort === "category") {
-        // Group by category with headers
-        const byCategory = new Map<string, ShoppingItem[]>();
-        for (const item of filteredActive) {
-          const cat = item.product?.category || "ללא קטגוריה";
-          if (!byCategory.has(cat)) byCategory.set(cat, []);
-          byCategory.get(cat)!.push(item);
-        }
-        const sortedCats = [...byCategory.keys()].sort((a, b) =>
-          a.localeCompare(b, "he"),
-        );
-        for (const cat of sortedCats) {
-          const emoji = CATEGORY_EMOJIS[cat] ?? "📦";
-          data.push({
-            type: "cart-category",
-            title: cat,
-            emoji,
-            key: `cart-cat-${cat}`,
-          });
-          const catItems = byCategory.get(cat)!;
-          catItems.sort((a, b) =>
-            (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
+
+      if (showCart) {
+        // Sort cart items based on selected mode
+        const cd = cartSortAsc ? 1 : -1;
+        if (cartSort === "category") {
+          // Group by category with headers
+          const byCategory = new Map<string, ShoppingItem[]>();
+          for (const item of filteredActive) {
+            const cat = normalizeCategory(item.product?.category ?? null);
+            if (!byCategory.has(cat)) byCategory.set(cat, []);
+            byCategory.get(cat)!.push(item);
+          }
+          const sortedCats = [...byCategory.keys()].sort(
+            (a, b) => a.localeCompare(b, "he") * cd,
           );
-          data.push(...catItems);
+          for (const cat of sortedCats) {
+            const emoji = CATEGORY_EMOJIS[cat] ?? "📦";
+            data.push({
+              type: "cart-category",
+              title: cat,
+              emoji,
+              key: `cart-cat-${cat}`,
+            });
+            const catItems = byCategory.get(cat)!;
+            catItems.sort((a, b) =>
+              (a.product?.name ?? "").localeCompare(
+                b.product?.name ?? "",
+                "he",
+              ),
+            );
+            data.push(...catItems);
+          }
+        } else if (cartSort === "recent") {
+          // Sort by most recently added
+          const sorted = [...filteredActive].sort(
+            (a, b) =>
+              (new Date(b.added_at).getTime() -
+                new Date(a.added_at).getTime()) *
+              cd,
+          );
+          data.push(...sorted);
+        } else {
+          // Sort by name
+          const sorted = [...filteredActive].sort(
+            (a, b) =>
+              (a.product?.name ?? "").localeCompare(
+                b.product?.name ?? "",
+                "he",
+              ) * cd,
+          );
+          data.push(...sorted);
         }
-      } else if (cartSort === "recent") {
-        // Sort by most recently added
-        const sorted = [...filteredActive].sort(
-          (a, b) =>
-            new Date(b.added_at).getTime() - new Date(a.added_at).getTime(),
-        );
-        data.push(...sorted);
-      } else {
-        // Sort by name (default)
-        const sorted = [...filteredActive].sort((a, b) =>
-          (a.product?.name ?? "").localeCompare(b.product?.name ?? "", "he"),
-        );
-        data.push(...sorted);
-      }
+      } // end showCart
     }
 
     // Divider
@@ -427,17 +645,18 @@ export default function HomeScreen() {
       data.push({ type: "all-products-header", key: "h-all" });
 
       if (showAllProducts) {
+        const ad = allProductsSortAsc ? 1 : -1;
         if (allProductsSort === "category") {
           // Group by category
           const byCategory = new Map<string, ShoppingItem[]>();
           for (const item of filteredPurchased) {
-            const cat = item.product?.category || "ללא קטגוריה";
+            const cat = normalizeCategory(item.product?.category ?? null);
             if (!byCategory.has(cat)) byCategory.set(cat, []);
             byCategory.get(cat)!.push(item);
           }
 
-          const sortedCats = [...byCategory.keys()].sort((a, b) =>
-            a.localeCompare(b, "he"),
+          const sortedCats = [...byCategory.keys()].sort(
+            (a, b) => a.localeCompare(b, "he") * ad,
           );
 
           for (const cat of sortedCats) {
@@ -464,16 +683,25 @@ export default function HomeScreen() {
             }
           }
         } else {
-          // Flat sort by name or recent — no category headers
+          // Flat sort by name, recent, or depletion — no category headers
           const sorted = [...filteredPurchased].sort((a, b) => {
             if (allProductsSort === "recent") {
               return (
-                new Date(b.added_at).getTime() - new Date(a.added_at).getTime()
+                (new Date(b.added_at).getTime() -
+                  new Date(a.added_at).getTime()) *
+                ad
               );
             }
-            return (a.product?.name ?? "").localeCompare(
-              b.product?.name ?? "",
-              "he",
+            if (allProductsSort === "depletion") {
+              const da = depletionPercentMap.get(a.product_id) ?? -1;
+              const db = depletionPercentMap.get(b.product_id) ?? -1;
+              return (db - da) * ad;
+            }
+            return (
+              (a.product?.name ?? "").localeCompare(
+                b.product?.name ?? "",
+                "he",
+              ) * ad
             );
           });
           for (const item of sorted) {
@@ -492,53 +720,107 @@ export default function HomeScreen() {
     filteredActive,
     filteredPurchased,
     showAllProducts,
+    showCart,
     cartSort,
+    cartSortAsc,
     allProductsSort,
+    allProductsSortAsc,
+    depletionPercentMap,
+    showRecommendations,
+    recommendations,
   ]);
+
+  // ── Sticky header indices for pinned section titles ──────
+  const stickyIndices = useMemo(() => {
+    const indices: number[] = [];
+    for (let i = 0; i < listData.length; i++) {
+      const row = listData[i]!;
+      if (
+        "type" in row &&
+        (row.type === "header" || row.type === "all-products-header")
+      ) {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }, [listData]);
 
   // ── Render helpers ─────────────────────────────────────────
   const renderRow = useCallback(
     ({ item: row }: { item: ListRow }) => {
+      // Recommendations row
+      if ("type" in row && row.type === "recommendations") {
+        return (
+          <RecommendationLine
+            recommendations={recommendations}
+            onAdd={handleAcceptRecommendation}
+            onSkip={handleSkipRecommendation}
+          />
+        );
+      }
+
       // Cart section header
       if ("type" in row && row.type === "header") {
         return (
-          <View>
-            <View style={styles.cartHeader}>
-              <Text style={styles.cartTitle}>{row.title}</Text>
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>
-                  {filteredActive.length} פריטים
-                </Text>
-              </View>
-            </View>
-            <View style={styles.sortRow}>
-              <Ionicons
-                name="swap-vertical"
-                size={14}
-                color={dark.textMuted}
-                style={{ marginEnd: 6 }}
-              />
-              {CART_SORT_OPTIONS.map((opt) => (
-                <TouchableOpacity
-                  key={opt.key}
-                  style={[
-                    styles.sortChip,
-                    cartSort === opt.key && styles.sortChipActive,
-                  ]}
-                  onPress={() => setCartSort(opt.key)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.sortChipText,
-                      cartSort === opt.key && styles.sortChipTextActive,
-                    ]}
-                  >
-                    {opt.label}
+          <View style={{ backgroundColor: dark.background }}>
+            <TouchableOpacity
+              style={styles.cartHeader}
+              onPress={() => setShowCart((v) => !v)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sectionLine} />
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.cartTitle}>{row.title}</Text>
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>
+                    {filteredActive.length} פריטים
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                </View>
+                <Text style={styles.toggleArrow}>{showCart ? "▲" : "▼"}</Text>
+              </View>
+              <View style={styles.sectionLine} />
+            </TouchableOpacity>
+            {showCart && (
+              <View style={styles.sortRow}>
+                <Ionicons
+                  name="swap-vertical"
+                  size={14}
+                  color={dark.textMuted}
+                  style={{ marginEnd: 6 }}
+                />
+                {CART_SORT_OPTIONS.map((opt) => {
+                  const isActive = cartSort === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        styles.sortChip,
+                        isActive && styles.sortChipActive,
+                      ]}
+                      onPress={() => {
+                        if (isActive) {
+                          setCartSortAsc((v) => !v);
+                        } else {
+                          setCartSort(opt.key);
+                          setCartSortAsc(true);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.sortChipText,
+                          isActive && styles.sortChipTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                        {isActive ? (cartSortAsc ? " ↑" : " ↓") : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
           </View>
         );
       }
@@ -561,25 +843,25 @@ export default function HomeScreen() {
       // "כל המוצרים" header (tappable to collapse)
       if ("type" in row && row.type === "all-products-header") {
         return (
-          <View>
+          <View style={{ backgroundColor: dark.background }}>
             <TouchableOpacity
               style={styles.allProductsHeader}
               onPress={() => setShowAllProducts((v) => !v)}
               activeOpacity={0.7}
             >
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-              >
-                <Text style={styles.allProductsTitle}>כל המוצרים</Text>
+              <View style={styles.sectionLine} />
+              <View style={styles.sectionTitleRow}>
+                <Text style={styles.allProductsTitle}>הקטלוג שלי</Text>
                 <View style={styles.cartBadge}>
                   <Text style={styles.cartBadgeText}>
                     {filteredPurchased.length} פריטים
                   </Text>
                 </View>
+                <Text style={styles.toggleArrow}>
+                  {showAllProducts ? "▲" : "▼"}
+                </Text>
               </View>
-              <Text style={styles.toggleArrow}>
-                {showAllProducts ? "▲" : "▼"}
-              </Text>
+              <View style={styles.sectionLine} />
             </TouchableOpacity>
             {showAllProducts && (
               <View style={styles.sortRow}>
@@ -589,27 +871,37 @@ export default function HomeScreen() {
                   color={dark.textMuted}
                   style={{ marginEnd: 6 }}
                 />
-                {ALL_SORT_OPTIONS.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.key}
-                    style={[
-                      styles.sortChip,
-                      allProductsSort === opt.key && styles.sortChipActive,
-                    ]}
-                    onPress={() => setAllProductsSort(opt.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
+                {ALL_SORT_OPTIONS.map((opt) => {
+                  const isActive = allProductsSort === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
                       style={[
-                        styles.sortChipText,
-                        allProductsSort === opt.key &&
-                          styles.sortChipTextActive,
+                        styles.sortChip,
+                        isActive && styles.sortChipActive,
                       ]}
+                      onPress={() => {
+                        if (isActive) {
+                          setAllProductsSortAsc((v) => !v);
+                        } else {
+                          setAllProductsSort(opt.key);
+                          setAllProductsSortAsc(true);
+                        }
+                      }}
+                      activeOpacity={0.7}
                     >
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.sortChipText,
+                          isActive && styles.sortChipTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                        {isActive ? (allProductsSortAsc ? " ↑" : " ↓") : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
           </View>
@@ -629,25 +921,13 @@ export default function HomeScreen() {
       // Product item in "All Products" section
       if ("type" in row && row.type === "all-product-item") {
         const isInCart = activeProductIds.has(row.item.product_id);
+        const depletion = showDepletion
+          ? depletionPercentMap.get(row.item.product_id)
+          : undefined;
+        const deplLabel =
+          depletion != null ? getDepletionLabel(depletion) : null;
         return (
           <View style={styles.allProductCard}>
-            <TouchableOpacity
-              style={styles.allProductInfo}
-              onPress={() => router.push(`/item/${row.item.id}`)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.allProductName,
-                  isInCart && styles.allProductNameInCart,
-                ]}
-              >
-                {row.item.product?.name ?? ""}
-              </Text>
-              <Text style={styles.allProductSub}>
-                {row.item.product?.category ?? ""}
-              </Text>
-            </TouchableOpacity>
             {isInCart ? (
               <View style={styles.inCartBadge}>
                 <Text style={styles.inCartBadgeText}>✓ בעגלה</Text>
@@ -665,6 +945,35 @@ export default function HomeScreen() {
               >
                 <Ionicons name="cart-outline" size={18} color={dark.accent} />
               </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={styles.allProductInfo}
+              onPress={() => router.push(`/item/${row.item.id}`)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.allProductName,
+                  isInCart && styles.allProductNameInCart,
+                ]}
+              >
+                {row.item.product?.name ?? ""}
+              </Text>
+              <Text style={styles.allProductSub}>
+                {row.item.product?.category ?? ""}
+              </Text>
+            </TouchableOpacity>
+            {deplLabel && (
+              <View style={styles.depletionEnd}>
+                <Text style={[styles.depletionPct, { color: deplLabel.color }]}>
+                  {depletion}%
+                </Text>
+                <Text
+                  style={[styles.depletionTitle, { color: deplLabel.color }]}
+                >
+                  {deplLabel.title}
+                </Text>
+              </View>
             )}
           </View>
         );
@@ -684,6 +993,7 @@ export default function HomeScreen() {
       filteredActive.length,
       filteredPurchased.length,
       showAllProducts,
+      showCart,
       activeProductIds,
       checkOffItem,
       handleSwipe,
@@ -691,6 +1001,11 @@ export default function HomeScreen() {
       user?.household_id,
       cartSort,
       allProductsSort,
+      depletionPercentMap,
+      showDepletion,
+      recommendations,
+      handleAcceptRecommendation,
+      handleSkipRecommendation,
     ],
   );
 
@@ -725,9 +1040,6 @@ export default function HomeScreen() {
       {/* ── Sticky header area ── */}
       <View style={styles.headerArea}>
         {/* Title row */}
-        <View style={styles.titleRow}>
-          <Text style={styles.pageTitle}>רשימת הקניות</Text>
-        </View>
 
         {/* Search bar */}
         <View style={styles.searchWrapper}>
@@ -755,15 +1067,30 @@ export default function HomeScreen() {
                 />
               </TouchableOpacity>
             )}
+            {voiceAvailable && (
+              <TouchableOpacity
+                style={[styles.micBtn, isListening && styles.micBtnActive]}
+                onPress={isListening ? stopListening : startListening}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isListening ? "mic" : "mic-outline"}
+                  size={20}
+                  color={isListening ? "#fff" : dark.accent}
+                />
+              </TouchableOpacity>
+            )}
+            {/* Bulk import icon */}
+            <TouchableOpacity
+              style={styles.bulkImportBtn}
+              onPress={() => setShowImportSheet(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="list-outline" size={18} color={dark.secondary} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
-
-      {/* Suggestion chips */}
-      <SuggestionChips
-        suggestions={suggestions}
-        onAccept={handleAcceptSuggestion}
-      />
 
       {/* Main scrollable content */}
       <FlatList
@@ -776,6 +1103,8 @@ export default function HomeScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        extraData={depletionPercentMap}
+        stickyHeaderIndices={stickyIndices}
         renderItem={renderRow}
         ListEmptyComponent={
           searchQuery.trim().length > 0 ? (
@@ -844,6 +1173,145 @@ export default function HomeScreen() {
           setPendingAddName(null);
         }}
       />
+      {/* ── Bulk Import Sheet ───────────────────────────────── */}
+      <Modal
+        visible={showImportSheet}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setShowImportSheet(false);
+          setShowManualInput(false);
+          setManualText("");
+        }}
+      >
+        <TouchableOpacity
+          style={styles.importOverlay}
+          activeOpacity={1}
+          onPress={() => {
+            setShowImportSheet(false);
+            setShowManualInput(false);
+            setManualText("");
+          }}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.importSheet}>
+            {/* Handle bar */}
+            <View style={styles.importHandle} />
+
+            <Text style={styles.importTitle}>הוספה מרובה</Text>
+            <Text style={styles.importHint}>
+              הוסיפו מוצרים מקובץ, מהלוח, או הקלידו ידנית.{"\n"}
+              פורמט: שם מוצר בכל שורה, או שם,כמות
+            </Text>
+
+            {/* Options */}
+            <View style={styles.importOptions}>
+              <TouchableOpacity
+                style={[
+                  styles.importOptionBtn,
+                  importing && styles.importOptionDisabled,
+                ]}
+                onPress={handlePickFile}
+                disabled={importing}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={22}
+                  color={dark.accent}
+                />
+                <Text style={styles.importOptionText}>טען מקובץ</Text>
+                <Text style={styles.importOptionSub}>CSV, TXT</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.importOptionBtn,
+                  importing && styles.importOptionDisabled,
+                ]}
+                onPress={() => setShowManualInput((v) => !v)}
+                disabled={importing}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={22}
+                  color={dark.warning}
+                />
+                <Text style={styles.importOptionText}>הקלדה ידנית</Text>
+                <Text style={styles.importOptionSub}>הזינו מוצרים בעצמכם</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Manual text area */}
+            {showManualInput && (
+              <View style={styles.importManualArea}>
+                <TextInput
+                  style={styles.importManualInput}
+                  value={manualText}
+                  onChangeText={setManualText}
+                  placeholder={"חלב\nביצים,2\nלחם"}
+                  placeholderTextColor={dark.placeholder}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.importSubmitBtn,
+                    (!manualText.trim() || importing) &&
+                      styles.importOptionDisabled,
+                  ]}
+                  onPress={handleManualImport}
+                  disabled={!manualText.trim() || importing}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.importSubmitText}>
+                    {importing ? "מייבא..." : "📥 ייבא פריטים"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Loading */}
+            {importing && (
+              <View style={styles.importLoadingRow}>
+                <ActivityIndicator size="small" color={dark.accent} />
+                <Text style={styles.importLoadingText}>מייבא פריטים...</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ── Import result popup ─────────────────────────────── */}
+      <Modal
+        visible={!!importBanner}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setImportBanner(null)}
+      >
+        <TouchableOpacity
+          style={styles.importPopupOverlay}
+          activeOpacity={1}
+          onPress={() => setImportBanner(null)}
+        >
+          <View
+            style={[
+              styles.importPopupCard,
+              importBanner?.type === "success"
+                ? styles.importPopupSuccess
+                : styles.importPopupError,
+            ]}
+          >
+            <Text style={styles.importPopupEmoji}>
+              {importBanner?.type === "success" ? "\u2705" : "\u274c"}
+            </Text>
+            <Text style={styles.importPopupText}>{importBanner?.text}</Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -915,19 +1383,186 @@ const styles = StyleSheet.create({
     color: dark.inputText,
     writingDirection: "rtl",
   },
+  micBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: dark.surface,
+    borderWidth: 1.5,
+    borderColor: dark.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    marginStart: 4,
+  },
+  micBtnActive: {
+    backgroundColor: dark.error,
+    borderColor: dark.error,
+  },
+  bulkImportBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: dark.surface,
+    borderWidth: 1.5,
+    borderColor: dark.secondary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginStart: 4,
+  },
+
+  // ── Bulk import sheet ──────────────────────────────────────
+  importOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  importSheet: {
+    backgroundColor: dark.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: 12,
+    borderTopWidth: 1.5,
+    borderColor: dark.border,
+  },
+  importHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: dark.textMuted,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  importTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: dark.text,
+    textAlign: "left",
+    marginBottom: 6,
+  },
+  importHint: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    textAlign: "left",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  importOptions: {
+    gap: 10,
+  },
+  importOptionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: dark.background,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: dark.border,
+  },
+  importOptionDisabled: {
+    opacity: 0.4,
+  },
+  importOptionText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: dark.text,
+    textAlign: "left",
+  },
+  importOptionSub: {
+    fontSize: 11,
+    color: dark.textSecondary,
+    fontWeight: "500",
+    textAlign: "right",
+  },
+  importManualArea: {
+    marginTop: 12,
+    gap: 10,
+  },
+  importManualInput: {
+    fontSize: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: dark.inputBorder,
+    borderRadius: 14,
+    backgroundColor: dark.input,
+    color: dark.inputText,
+    writingDirection: "rtl",
+    minHeight: 120,
+  },
+  importSubmitBtn: {
+    backgroundColor: dark.accent,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  importSubmitText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  importLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  importLoadingText: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    fontWeight: "600",
+  },
+  importPopupOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  importPopupCard: {
+    backgroundColor: dark.surfaceElevated,
+    borderRadius: 22,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    borderWidth: 1.5,
+  },
+  importPopupSuccess: {
+    borderColor: dark.success,
+  },
+  importPopupError: {
+    borderColor: dark.error,
+  },
+  importPopupEmoji: {
+    fontSize: 36,
+    marginBottom: 12,
+  },
+  importPopupText: {
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "700",
+    color: dark.text,
+    lineHeight: 24,
+  },
 
   // ── Cart section header ────────────────────────────────────
   cartHeader: {
     flexDirection: "row",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 10,
     gap: 10,
+    backgroundColor: dark.background,
   },
   cartTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "700",
     color: dark.text,
   },
@@ -955,20 +1590,33 @@ const styles = StyleSheet.create({
   // ── "All Products" section ─────────────────────────────────
   allProductsHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 10,
+    gap: 10,
+    backgroundColor: dark.background,
   },
   allProductsTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "700",
     color: dark.textSecondary,
   },
   toggleArrow: {
     fontSize: 12,
     color: dark.textMuted,
+  },
+  sectionLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: dark.surfaceHighlight,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
   },
 
   // ── Category header ────────────────────────────────────────
@@ -992,7 +1640,7 @@ const styles = StyleSheet.create({
   // ── All-product card (dark surface, rounded) ───────────────
   allProductCard: {
     flexDirection: "row",
-    direction: "ltr",
+    direction: "rtl",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: dark.surfaceDark,
@@ -1011,17 +1659,41 @@ const styles = StyleSheet.create({
     paddingEnd: 5,
   },
   allProductName: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "500",
     color: "#D1D5DB", // gray-300
+  },
+  allProductNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  predictionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   allProductNameInCart: {
     textDecorationLine: "line-through",
   },
   allProductSub: {
-    fontSize: 10,
+    fontSize: 11,
     color: dark.textSecondary,
     marginTop: 2,
+  },
+  depletionEnd: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginStart: 10,
+  },
+  depletionPct: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  depletionTitle: {
+    fontSize: 8,
+    fontWeight: "500",
+    marginTop: 1,
   },
   categoryEditRow: {
     flexDirection: "row",
@@ -1030,11 +1702,11 @@ const styles = StyleSheet.create({
   addBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: 18,
     backgroundColor: "rgba(139,159,232,0.12)",
     alignItems: "center",
     justifyContent: "center",
-    marginStart: 5,
+    marginEnd: 12,
   },
   inCartBadge: {
     flexDirection: "row",
@@ -1043,7 +1715,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
-    marginStart: 5,
+    marginEnd: 12,
   },
   inCartBadgeText: {
     fontSize: 12,
@@ -1099,14 +1771,14 @@ const styles = StyleSheet.create({
   sortRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 22,
     paddingBottom: 8,
     gap: 6,
   },
   sortChip: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+    paddingVertical: 6,
+    borderRadius: 18,
     backgroundColor: dark.surface,
     borderWidth: 1,
     borderColor: dark.surfaceHighlight,
@@ -1116,7 +1788,7 @@ const styles = StyleSheet.create({
     borderColor: dark.accent,
   },
   sortChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
     color: dark.textMuted,
   },
