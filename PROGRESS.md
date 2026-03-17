@@ -46,7 +46,7 @@
   - `AddProductSheet.tsx` — add/search products
   - `ShoppingListItem.tsx` — list item with swipe-to-check
   - `SnoozeSheet.tsx` — snooze suggestions
-  - `SuggestionChips.tsx` — AI-predicted items
+  - `SuggestionChips.tsx` — AI-predicted items (replaced by `RecommendationLine.tsx` in Step 5u)
 - [x] **DB types** — `src/types/database.ts`
 - [x] **Tab layout** — `app/(tabs)/` with index & two screens
 
@@ -78,7 +78,7 @@
 - [x] **Dark theme system** — Created `constants/theme.ts` with GitHub dark-inspired color palette (background, surface, text, accent, success, error, etc.)
 - [x] **Forced dark mode** — Overrode `useColorScheme` (both native + web) to always return `'dark'`; added `DarkTheme` to root layout navigation
 - [x] **All screens dark-themed** — auth.tsx, index.tsx, two.tsx, settings.tsx all updated with `dark.*` color references
-- [x] **All components dark-themed** — ShoppingListItem, AddProductSheet, SuggestionChips, SnoozeSheet updated with dark palette
+- [x] **All components dark-themed** — ShoppingListItem, AddProductSheet, SnoozeSheet updated with dark palette
 - [x] **RTL text alignment** — Added explicit `textAlign: 'right'` to all Hebrew text labels/titles/headers across all screens and components
 - [x] **Consistent placeholder colors** — All `placeholderTextColor` props updated to use `dark.placeholder` from theme
 

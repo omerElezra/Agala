@@ -10,12 +10,12 @@ This document strictly defines the User Experience (UX), UI layout, and client-s
 
 This is a single-screen app layout. The dashboard is divided into three distinct vertical sections:
 
-1. **Suggestions/Discovery (Top):** Items with a `confidence_score` between 50-84.
-   - _UI element:_ Horizontal scrolling chips or a compact list.
-   - _Action:_ One-tap "+" to move it to the Active List (Boosts AI confidence).
+1. **Recommendation Line (Top):** Products due within 3 days, shown as horizontal scrollable cards with urgency color coding (red=overdue, orange=due-soon, yellow=upcoming). Each card has "הוסף" (add to cart) and "דלג" (skip) buttons with animated transitions. Toggled via Settings → "🤖 AI מזהה מה חסר".
 2. **Active List - Auto-Added (Middle):** Items the AI added (Score >= 85).
    - _UI element:_ Standard list items with a visual indicator (e.g., "✨ Auto-Added").
 3. **Active List - Manually Added (Bottom):** Items the user typed in manually.
+
+Both cart ("עגלה שלי") and catalog ("הקטלוג שלי") sections are **collapsible** (▲/▼ toggle) with **sticky pinned headers** that remain visible during scrolling. Catalog items show depletion % with Hebrew status labels ("לך תקנה", "תכף נגמר", etc.).
 
 ### 2.2 The "Check-Off" Interaction (The 'V')
 

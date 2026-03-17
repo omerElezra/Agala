@@ -199,7 +199,7 @@ User taps checkmark → Optimistic UI update (Zustand)
     │
     ├── Instant state changes (before any DB call):
     │    ├── item.status → 'purchased', purchased_at → now
-    │    ├── predictionStatusMap[product_id] → 'normal' (dot removed)
+    │    ├── depletionPercentMap[product_id] reset (depletion label updated)
     │    └── Remove from _allRecCandidates + recommendations
     │
     └── Async DB operations:

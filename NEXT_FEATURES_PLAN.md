@@ -38,7 +38,7 @@
   - **Sort chips**: Name (שם), Category (קטגוריה), Recent (שונה לאחרונה) — applied to both cart and all-products sections. ✅
   - **Default sort**: "שונה לאחרונה" (by `added_at` newest-first) is the default on every screen focus. ✅
   - **useFocusEffect reset**: Sort selection resets automatically when the screen gains focus. ✅
-  - **All products counter**: Item count badge displayed next to "כל המוצרים" header. ✅
+  - **All products counter**: Item count badge displayed next to "הקטלוג שלי" header. ✅
 
 - [x] **Auth Screen Polish** ✅ Implemented (Step 5r)
   - **Visual differentiation**: Login and sign-up have distinct headers, logo sizes, and form fields. ✅
@@ -158,10 +158,9 @@
   - Add "reason" context to recommendations (e.g., "last bought 10 days ago, cycle is 7 days").
   - Consider widening the recommendation window from 3 days to configurable (user preference).
 
-- [ ] **Suggestion Chips Pipeline**
-  - Currently requires `auto_add_status = 'suggest_only'` AND `confidence_score >= 50` — most new items start at 0 confidence.
-  - Consider showing suggestions for items with `ema_days > 0` regardless of confidence, or lowering the threshold for new users.
-  - Evaluate cold-start experience: new users won't see suggestions until the nightly function has run multiple times.
+- [x] **Suggestion Chips Pipeline** ✅ Archived (replaced by Recommendation Line in Step 5t/5u)
+  - SuggestionChips component replaced by RecommendationLine with depletion-based recommendations.
+  - Recommendation engine now uses `fetchRecommendations()` with depletion % calculation instead of confidence-score-based suggestion chips.
 
 - [ ] **Purchase History Completeness Audit**
   - Verify all purchase paths write to `purchase_history` (checkOffItem, addItem with status='purchased', nightly auto-add).

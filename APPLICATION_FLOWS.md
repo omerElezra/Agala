@@ -14,12 +14,12 @@
 3. [Flow 1: User Signup & Household Creation](#3-flow-1-user-signup--household-creation)
 4. [Flow 2: Adding a Product](#4-flow-2-adding-a-product)
 5. [Flow 3: Checking Off an Item (Purchase)](#5-flow-3-checking-off-an-item-purchase)
-6. [Flow 4: Reactivating an Item (All Items → Cart)](#6-flow-4-reactivating-an-item-all-items--cart)
+6. [Flow 4: Reactivating an Item (Catalog → Cart)](#6-flow-4-reactivating-an-item-all-items--cart)
 7. [Flow 5: Snooze / Delete Item](#7-flow-5-snooze--delete-item)
 8. [Flow 6: Nightly Prediction Engine](#8-flow-6-nightly-prediction-engine)
 9. [Flow 7: Recommendation Line (Client-Side)](#9-flow-7-recommendation-line-client-side)
-10. [Flow 8: Suggestion Chips (Client-Side)](#10-flow-8-suggestion-chips-client-side)
-11. [Flow 9: Prediction Status Dots](#11-flow-9-prediction-status-dots)
+10. [Flow 8: Suggestion Chips (Archived)](#10-flow-8-suggestion-chips-archived)
+11. [Flow 9: Depletion Tracking & Status Labels](#11-flow-9-depletion-tracking--status-labels)
 12. [Flow 10: Realtime Sync](#12-flow-10-realtime-sync)
 13. [EMA Algorithm Reference](#13-ema-algorithm-reference)
 14. [Confidence Score State Machine](#14-confidence-score-state-machine)
@@ -60,14 +60,14 @@
 
 ## 2. Tables & Their Roles
 
-| Table | Purpose | Write Frequency | Read By |
-|-------|---------|-----------------|---------|
-| `households` | Multi-tenant boundary | Once (on signup) | Auth trigger |
-| `users` | Identity + household link | Once (on signup) | Auth hook |
-| `products` | Product catalog (global + custom) | On new product add | Search, list display |
-| `shopping_list` | Active cart + all items | Every add/purchase/snooze | Main screen, realtime |
-| `purchase_history` | Immutable purchase ledger | Every purchase (checkOff) | Nightly prediction, item detail |
-| `household_inventory_rules` | AI prediction state per product | On purchase + nightly | Recommendations, dots, suggestions |
+| Table                       | Purpose                           | Write Frequency           | Read By                            |
+| --------------------------- | --------------------------------- | ------------------------- | ---------------------------------- |
+| `households`                | Multi-tenant boundary             | Once (on signup)          | Auth trigger                       |
+| `users`                     | Identity + household link         | Once (on signup)          | Auth hook                          |
+| `products`                  | Product catalog (global + custom) | On new product add        | Search, list display               |
+| `shopping_list`             | Active cart + all items           | Every add/purchase/snooze | Main screen, realtime              |
+| `purchase_history`          | Immutable purchase ledger         | Every purchase (checkOff) | Nightly prediction, item detail    |
+| `household_inventory_rules` | AI prediction state per product   | On purchase + nightly     | Recommendations, dots, suggestions |
 
 ---
 
@@ -91,6 +91,7 @@ Client: useAuth() detects session
 ```
 
 **DB Operations:**
+
 - **Write**: `households` (1 row), `users` (1 row)
 - **Read**: `users` (profile fetch by auth.uid)
 
@@ -132,6 +133,7 @@ Realtime push → other household members see the item
 See [Flow 4](#6-flow-4-reactivating-an-item-all-items--cart).
 
 **DB Operations:**
+
 - **Read**: `products` (search query)
 - **Write**: `products` (if new), `shopping_list` (new item)
 
@@ -173,10 +175,12 @@ Async DB operations (fire-and-forget):
 ```
 
 **DB Operations:**
+
 - **Write**: `shopping_list` (update status), `purchase_history` (new row), `household_inventory_rules` (update or insert)
 - **Read**: `household_inventory_rules` (check if rule exists)
 
 **Key design decisions:**
+
 - No `fetchRecommendations` call after purchase — optimistic updates are trusted, DB catches up in background
 - `last_purchased_at` is updated on EVERY purchase, not just first purchase
 - If DB write fails, purchase is queued in `offlineQueue` for retry
@@ -207,6 +211,7 @@ Async DB operation:
 ```
 
 **DB Operations:**
+
 - **Write**: `shopping_list` (update status to 'active')
 
 **Why recommendations refresh:** The item just moved from "purchased" to "active". Since recommendations only show "purchased" items, it must be removed.
@@ -248,6 +253,7 @@ DB Trigger: trg_confidence_penalty_on_delete
 ```
 
 **DB Operations:**
+
 - **Write**: `shopping_list` (update/delete)
 - **Trigger writes**: `household_inventory_rules` (confidence penalty)
 
@@ -300,6 +306,7 @@ pg_cron triggers Edge Function
 ```
 
 **DB Operations:**
+
 - **Read**: `household_inventory_rules`, `purchase_history`, `shopping_list` (existence checks)
 - **Write**: `household_inventory_rules` (EMA + confidence), `shopping_list` (auto-add inserts)
 
@@ -344,6 +351,7 @@ fetchRecommendations(householdId)
 ### User interactions with recommendation cards:
 
 **"🛒 הוסף" (Add to Cart):**
+
 ```
 acceptRecommendation(rec)
     │
@@ -356,6 +364,7 @@ acceptRecommendation(rec)
 ```
 
 **"דלג" (Skip):**
+
 ```
 skipRecommendation(rec)
     │
@@ -366,39 +375,17 @@ skipRecommendation(rec)
 ```
 
 **DB Operations:**
+
 - **Read**: `household_inventory_rules` (with products join)
 - **Write** (on "הוסף"): `shopping_list` (new active item)
 
 ---
 
-## 10. Flow 8: Suggestion Chips (Client-Side)
+## 10. Flow 8: Suggestion Chips (Archived)
 
-Triggered by `fetchSuggestions(householdId)` — called on app load.
-
-```
-fetchSuggestions(householdId)
-    │
-    ├── SELECT * FROM household_inventory_rules
-    │    JOIN products ON product_id
-    │    WHERE household_id = X
-    │    AND auto_add_status = 'suggest_only'
-    │    AND confidence_score >= 50
-    │    ORDER BY confidence_score DESC
-    │
-    ├── Filter: exclude products in active cart (status='active')
-    │
-    ├── For each rule:
-    │    ├── Compute daysUntilNextBuy (same formula as recommendations)
-    │    └── Create SuggestionItem {id, productId, product, confidenceScore, daysUntilNextBuy}
-    │
-    ├── Sort: urgent items first (overdue), then by confidence DESC
-    └── Store: suggestions = sorted list
-```
-
-**DB Operations:**
-- **Read**: `household_inventory_rules` (filtered by suggest_only + threshold)
-
-**Note:** Suggestions require `auto_add_status = 'suggest_only'` which only happens when `confidence_score` reaches 50-84 (set by nightly function). New items start at 0, so suggestions only appear after enough purchase cycles.
+> **Archived**: The `SuggestionChips` component has been replaced by `RecommendationLine` (Step 5t/5u, 2026-03-17). The `fetchSuggestions()` method still exists in the store but is never called. Recommendation logic is now handled entirely by `fetchRecommendations()` which computes depletion percentages and shows items due within 3 days.
+>
+> See **Flow 7: Recommendation Line** for the current implementation.
 
 ---
 
@@ -410,18 +397,19 @@ Depletion % and Hebrew status labels are shown next to items in the "הקטלו�
 
 ### Depletion Label Tiers
 
-| Depletion % | Label | Color |
-|-------------|-------|-------|
-| ≥ 100% | לך תקנה | 🔴 Red (rgba(239,68,68,0.7)) |
-| ≥ 80% | תכף נגמר | 🟠 Orange (rgba(249,115,22,0.7)) |
-| ≥ 60% | חצי קלאץ' | 🟡 Yellow (rgba(251,191,36,0.7)) |
-| ≥ 30% | יש, אל תדאג | Gray (textSecondary) |
-| ≥ 1% | יש בשפע | Gray (textSecondary) |
-| 0% | הרגע קנינו | Gray (textMuted) |
+| Depletion % | Label       | Color                            |
+| ----------- | ----------- | -------------------------------- |
+| ≥ 100%      | לך תקנה     | 🔴 Red (rgba(239,68,68,0.7))     |
+| ≥ 80%       | תכף נגמר    | 🟠 Orange (rgba(249,115,22,0.7)) |
+| ≥ 60%       | חצי קלאץ'   | 🟡 Yellow (rgba(251,191,36,0.7)) |
+| ≥ 30%       | יש, אל תדאג | Gray (textSecondary)             |
+| ≥ 1%        | יש בשפע     | Gray (textSecondary)             |
+| 0%          | הרגע קנינו  | Gray (textMuted)                 |
 
 **Data source:** `depletionPercentMap` (Map<productId, number>) populated by `fetchRecommendations`.
 
 **Calculation:**
+
 ```
 totalCycleDays = ema_days × lastQty
 daysElapsed = (now - lastDate) / DAY_MS
@@ -431,6 +419,7 @@ depletionPct = min(100, max(0, round((daysElapsed / totalCycleDays) × 100)))
 **Display control:** Toggle via `showDepletion` in `appSettingsStore`.
 
 ### UI Features
+
 - Depletion column rendered in catalog cards when `showDepletion` is true
 - Sort by depletion ("עומד להיגמר") — highest depletion first, items without data sink to bottom
 - Sort direction toggle (↑/↓) on all sort chips
@@ -460,6 +449,7 @@ subscribeRealtime(householdId)
 ```
 
 **DB Operations:**
+
 - **Read**: Realtime subscription (WebSocket, no polling)
 - **Write**: None (realtime is read-only listener)
 
@@ -472,6 +462,7 @@ subscribeRealtime(householdId)
 $$EMA_{new} = \alpha \cdot \text{perItemInterval} + (1 - \alpha) \cdot EMA_{old}$$
 
 Where:
+
 - $\alpha = 0.3$
 - $\text{perItemInterval} = \frac{\text{rawDaysBetweenPurchases}}{Q_{previous}}$
 - $EMA_{old}$ = current `ema_days` in `household_inventory_rules`
@@ -480,11 +471,11 @@ Where:
 
 `ema_days` is ALWAYS per 1 item. Example:
 
-| Purchase | Date | Qty | Raw Interval | Per-Item Interval |
-|----------|------|-----|--------------|-------------------|
-| #1 | Mar 1 | 2 | — | — |
-| #2 | Mar 15 | 3 | 14 days | 14 ÷ 2 = **7** |
-| #3 | Apr 5 | 1 | 21 days | 21 ÷ 3 = **7** |
+| Purchase | Date   | Qty | Raw Interval | Per-Item Interval |
+| -------- | ------ | --- | ------------ | ----------------- |
+| #1       | Mar 1  | 2   | —            | —                 |
+| #2       | Mar 15 | 3   | 14 days      | 14 ÷ 2 = **7**    |
+| #3       | Apr 5  | 1   | 21 days      | 21 ÷ 3 = **7**    |
 
 After #2: EMA = 7 (seed).
 After #3: EMA = 0.3 × 7 + 0.7 × 7 = **7**.
@@ -525,42 +516,48 @@ $$\text{NextDate} = \text{lastPurchasedAt} + (ema\_days \times Q_{last})$$
 
 ### Score Adjustments
 
-| Signal | Change | Where |
-|--------|--------|-------|
-| Purchase within 15% of predicted interval | +10 | Nightly function |
-| User accepts suggestion | +15 | acceptSuggestion action |
-| User deletes auto-added item | -20 | DB trigger |
-| User snoozes item | -15 | DB trigger |
+| Signal                                    | Change | Where                   |
+| ----------------------------------------- | ------ | ----------------------- |
+| Purchase within 15% of predicted interval | +10    | Nightly function        |
+| User accepts suggestion                   | +15    | acceptSuggestion action |
+| User deletes auto-added item              | -20    | DB trigger              |
+| User snoozes item                         | -15    | DB trigger              |
 
 ---
 
 ## 15. Known Edge Cases & Decisions
 
 ### Cold Start (New User)
+
 - No `purchase_history` → no EMA → `ema_days = 0` → no dots, no recommendations
 - First purchase creates a `household_inventory_rules` row with `ema_days = 0`
 - Second purchase (through nightly) computes first real EMA
 - **Backfill migration** seeds synthetic purchases 7 days before first real purchase to bootstrap predictions
 
 ### Quantity = 0 Safety
+
 - Quantity defaults to 1 if not set or 0
 - Division by zero prevented by `?? 1` fallback in all quantity lookups
 
 ### Session vs Persistent Skips
+
 - `_skippedRecIds` is a session-only Set — resets on app restart
 - Skipping does NOT penalize confidence (unlike snooze/delete)
 
 ### Optimistic vs DB Truth
+
 - Dots and recommendations are set optimistically on purchase, then the DB is updated async
 - No `fetchRecommendations` call after purchase to prevent overwriting optimistic state
 - Next app load re-fetches everything from DB (which now has updated `last_purchased_at`)
 
 ### Items in Both Cart and All Items
+
 - The same `product_id` can exist in `shopping_list` with `status='active'` (cart) and there might be a separate row with `status='purchased'` (all items)
 - Recommendations ONLY source from `status='purchased'` items
 - Dots show for ALL products (both sections) based on `predictionStatusMap`
 
 ### Backfill SQL Migration
+
 - File: `supabase/migrations/20260316_backfill_inventory_rules.sql`
 - Creates `purchase_history` from `shopping_list` (all statuses)
 - Seeds synthetic "earlier" purchase 7 days before first real one

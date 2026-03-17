@@ -100,15 +100,18 @@ Agala/
 │   ├── components/
 │   │   ├── AddProductSheet.tsx   # Add product modal — search, recent, quantity picker
 │   │   ├── CategorySheet.tsx     # Category picker bottom sheet — 16 categories with emoji, used for new product & edit flows
+│   │   ├── RecommendationLine.tsx # AI recommendation cards — horizontal scroll, urgency colors, animated dismiss
 │   │   ├── ShoppingListItem.tsx  # Shopping list row — swipe, qty controls, animated feedback, purchased alignment spacer
 │   │   ├── SnoozeSheet.tsx       # Snooze action sheet
-│   │   └── SuggestionChips.tsx   # AI suggestion chips
+│   │   └── WhatsNewModal.tsx     # In-app changelog modal — shows on version update
 │   ├── hooks/
-│   │   └── useAuth.ts           # Auth state — session, profile fetch/create, sign-out, refreshProfile
+│   │   ├── useAuth.ts           # Auth state — session, profile fetch/create, sign-out, refreshProfile
+│   │   └── useSpeechRecognition.ts # Voice input hook — expo-speech-recognition, Hebrew, graceful fallback
 │   ├── lib/
 │   │   └── supabase.ts          # Supabase client — AsyncStorage, SSR-safe
 │   ├── store/
-│   │   └── shoppingListStore.ts  # Zustand store — optimistic updates, realtime, offline queue
+│   │   ├── appSettingsStore.ts   # App settings — Zustand + AsyncStorage (showRecommendations, showDepletion, autoAddEnabled)
+│   │   └── shoppingListStore.ts  # Zustand store — optimistic updates, realtime, recommendations, depletion tracking
 │   ├── types/
 │   │   └── database.ts          # Auto-generated Supabase DB types
 │   └── utils/
