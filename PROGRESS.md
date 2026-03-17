@@ -46,7 +46,7 @@
   - `AddProductSheet.tsx` — add/search products
   - `ShoppingListItem.tsx` — list item with swipe-to-check
   - `SnoozeSheet.tsx` — snooze suggestions
-  - `SuggestionChips.tsx` — AI-predicted items (replaced by `RecommendationLine.tsx` in Step 5u)
+  - `SuggestionChips.tsx` — AI-predicted items (replaced by `RecommendationLine.tsx` in Step 5u; component deleted)
 - [x] **DB types** — `src/types/database.ts`
 - [x] **Tab layout** — `app/(tabs)/` with index & two screens
 
@@ -264,7 +264,7 @@
 - [x] **Optimistic recommendation removal on purchase** — Checking off an item removes it from `_allRecCandidates` and `recommendations` immediately
 - [x] **Clock-aware dot calculation** — `fetchRecommendations` now uses `Math.max(rule.last_purchased_at, item.purchased_at)` to compute `lastDate`, ensuring recently purchased items always show correct dot color even if the DB rule update is slow
 - [x] **Backfill migration fix** — Fixed stray `§` character in SQL that caused silent syntax error; rewrote with `DO $$` diagnostic blocks showing BEFORE/AFTER table counts via `RAISE NOTICE`
-- [x] **Client-side `activeProductIds` filter bug** — Fixed `fetchSuggestions` and `fetchRecommendations` to only exclude `status='active'` items (was excluding ALL items including purchased)
+- [x] **Client-side `activeProductIds` filter bug** — Fixed recommendation fetching to only exclude `status='active'` items (was excluding ALL items including purchased)
 
 ### 5u. AI Recommendations, Depletion Tracking, Voice Input & UX Overhaul (2026-03-17)
 
@@ -287,6 +287,9 @@
 - [x] **DB migration: legacy category normalization** — `20260315_normalize_legacy_categories.sql` maps old category names to official 16-category standard
 - [x] **DB migration: backfill inventory rules** — `20260316_backfill_inventory_rules.sql` seeds purchase history and inventory rules from existing data
 - [x] **Legacy category fix script** — `scripts/fix_legacy_categories.py` for ad-hoc category normalization
+- [x] **SuggestionChips fully removed** — Deleted orphaned `SuggestionChips.tsx` component; removed `SuggestionItem` interface, `AI_SUGGESTION_CONFIG`, `fetchSuggestions`, and `acceptSuggestion` from store
+- [x] **All suggestion→recommendation references updated** — Updated 9 files across docs, nightly-prediction functions, and store code to use "recommendation" terminology consistently
+- [x] **Documentation alignment audit** — Verified all 17 MD files against codebase; fixed "כל המוצרים" → "הקטלוג שלי", prediction dots → depletion labels, and updated component tree in DEVELOPMENT.md
 
 ---
 
