@@ -60,13 +60,13 @@
 
 ## 2. Tables & Their Roles
 
-| Table                       | Purpose                           | Write Frequency           | Read By                            |
-| --------------------------- | --------------------------------- | ------------------------- | ---------------------------------- |
-| `households`                | Multi-tenant boundary             | Once (on signup)          | Auth trigger                       |
-| `users`                     | Identity + household link         | Once (on signup)          | Auth hook                          |
-| `products`                  | Product catalog (global + custom) | On new product add        | Search, list display               |
-| `shopping_list`             | Active cart + all items           | Every add/purchase/snooze | Main screen, realtime              |
-| `purchase_history`          | Immutable purchase ledger         | Every purchase (checkOff) | Nightly prediction, item detail    |
+| Table                       | Purpose                           | Write Frequency           | Read By                           |
+| --------------------------- | --------------------------------- | ------------------------- | --------------------------------- |
+| `households`                | Multi-tenant boundary             | Once (on signup)          | Auth trigger                      |
+| `users`                     | Identity + household link         | Once (on signup)          | Auth hook                         |
+| `products`                  | Product catalog (global + custom) | On new product add        | Search, list display              |
+| `shopping_list`             | Active cart + all items           | Every add/purchase/snooze | Main screen, realtime             |
+| `purchase_history`          | Immutable purchase ledger         | Every purchase (checkOff) | Nightly prediction, item detail   |
 | `household_inventory_rules` | AI prediction state per product   | On purchase + nightly     | Recommendations, depletion labels |
 
 ---
@@ -516,12 +516,12 @@ $$\text{NextDate} = \text{lastPurchasedAt} + (ema\_days \times Q_{last})$$
 
 ### Score Adjustments
 
-| Signal                                    | Change | Where                   |
-| ----------------------------------------- | ------ | ----------------------- |
-| Purchase within 15% of predicted interval | +10    | Nightly function        |
+| Signal                                    | Change | Where                       |
+| ----------------------------------------- | ------ | --------------------------- |
+| Purchase within 15% of predicted interval | +10    | Nightly function            |
 | User accepts recommendation               | +15    | acceptRecommendation action |
-| User deletes auto-added item              | -20    | DB trigger              |
-| User snoozes item                         | -15    | DB trigger              |
+| User deletes auto-added item              | -20    | DB trigger                  |
+| User snoozes item                         | -15    | DB trigger                  |
 
 ---
 

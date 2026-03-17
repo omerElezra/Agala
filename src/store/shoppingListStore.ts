@@ -226,9 +226,13 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       // Depletion %: how much of the purchase cycle has elapsed
       const totalCycleDays = rule.ema_days * lastQty;
       const daysElapsed = (now - lastDate) / DAY_MS;
-      const depletion = totalCycleDays > 0
-        ? Math.min(100, Math.max(0, Math.round((daysElapsed / totalCycleDays) * 100)))
-        : 0;
+      const depletion =
+        totalCycleDays > 0
+          ? Math.min(
+              100,
+              Math.max(0, Math.round((daysElapsed / totalCycleDays) * 100)),
+            )
+          : 0;
       depletionMap.set(rule.product_id, depletion);
 
       // Recommendation candidates: due within 3 days AND in "All Items" (purchased)
