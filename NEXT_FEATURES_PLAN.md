@@ -158,6 +158,11 @@
   - Pasting a household ID from one account into another account's "join household" field fails — ID not found.
   - **Investigation**: Check RLS policies on `households` table — the joining user likely can't SELECT the target household row because RLS restricts reads to members only. Also verify the join logic in `settings.tsx` (update user's `household_id`) and whether the `users` table RLS allows updating `household_id` to a foreign household.
 
+- [ ] **Voice Input: Auto-Stop Recording (מיקרופון — סיום הקלטה אוטומטי)**
+  - Currently the user must tap the microphone button again to stop recording.
+  - Add auto-stop behavior: detect silence / end-of-speech and finish recording automatically.
+  - Check `useSpeechRecognition.ts` for `expo-speech-recognition` options like silence timeout or `interimResults` end event.
+
 ## Notes
 
 - Keep UX minimal and clear.
