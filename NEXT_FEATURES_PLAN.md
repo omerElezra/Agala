@@ -132,6 +132,17 @@
   - Same import logic as the Settings import — parses lines of "name" or "name,quantity".
   - Results shown in a popup overlay with success/error feedback.
 
+- [ ] **CI Email Notification Redesign (תיקון מייל CI)**
+  - Current release-notification email has poor formatting / doesn't look good.
+  - Redesign the HTML template in the GitHub Actions workflow (`cicd.yml`) for a cleaner layout.
+  - Improve Hebrew text styling, version/status sections, and Play Store link presentation.
+
+- [ ] **What's New Popup in Hebrew (חלון "מה חדש" בעברית)**
+  - Current `WhatsNewModal` fetches release notes from GitHub Releases API — content is in English.
+  - Switch data source to local Hebrew release notes (e.g. `RELEASE_NOTES_NEXT.md` or bundled asset).
+  - Display user-facing Hebrew update summary (same content as `whatsnew/he-IL`).
+  - Improve general styling: RTL alignment, section headers, spacing, readability.
+
 ## Notes
 
 - Keep UX minimal and clear.
