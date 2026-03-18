@@ -143,6 +143,21 @@
   - Display user-facing Hebrew update summary (same content as `whatsnew/he-IL`).
   - Improve general styling: RTL alignment, section headers, spacing, readability.
 
+- [ ] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)**
+  - App content currently extends into system bars (status bar / navigation bar) on some devices.
+  - Wrap screens with `SafeAreaView` or use `useSafeAreaInsets()` to keep all content within the safe zone.
+  - After fix — validate the bulk-add flow (הוספה מרובה) still works correctly: bottom sheet opens fully, import options are tappable, and results overlay isn't clipped by system bars.
+
+- [ ] **🔴 CRITICAL: Search Bar Add-Item Crash (קריסה בהוספת מוצר מחיפוש)** — since v1.0.10
+  - **Bug 1 — Add button missing**: On some phones, typing a new item name in the search bar does NOT show the "add item" button. Clearing the text bar results in a blank screen.
+  - **Bug 2 — White screen freeze on add**: On other phones, the "item not found" state appears correctly with the add button, but tapping it causes a white blank screen and the app freezes — requires full restart. Happens every time on affected devices.
+  - **Regression**: Both issues started in v1.0.10. Was working in v1.0.9.
+  - **Investigation**: Compare search bar / add-product flow changes between v1.0.9 and v1.0.10. Check `AddProductSheet`, `SearchBar`, and `index.tsx` search/filter logic for race conditions, missing error boundaries, or layout issues on smaller screens.
+
+- [ ] **🔴 BUG: Shared Household Join Fails (משק בית משותף — לא מוצא את הקוד)**
+  - Pasting a household ID from one account into another account's "join household" field fails — ID not found.
+  - **Investigation**: Check RLS policies on `households` table — the joining user likely can't SELECT the target household row because RLS restricts reads to members only. Also verify the join logic in `settings.tsx` (update user's `household_id`) and whether the `users` table RLS allows updating `household_id` to a foreign household.
+
 ## Notes
 
 - Keep UX minimal and clear.
