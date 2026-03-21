@@ -12,7 +12,18 @@
 erDiagram
     households {
         UUID id PK
+        TEXT name
         TIMESTAMPTZ created_at
+    }
+
+    household_invites {
+        UUID id PK
+        UUID household_id FK
+        TEXT code
+        UUID created_by FK
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ expires_at
+        INTEGER uses_remaining
     }
 
     users {
@@ -66,6 +77,7 @@ erDiagram
     households ||--o{ household_inventory_rules : "owns rules"
     households ||--o{ purchase_history : "owns history"
     households ||--o{ products : "created_by_household"
+    households ||--o{ household_invites : "has invites"
     products ||--o{ shopping_list : "listed in"
     products ||--o{ household_inventory_rules : "tracked by"
     products ||--o{ purchase_history : "purchased as"
@@ -79,10 +91,37 @@ erDiagram
 
 Central multi-tenant entity. Every user belongs to exactly one household; all data is scoped to a household.
 
-| Column       | Type        | Default             | Description         |
-| ------------ | ----------- | ------------------- | ------------------- |
-| `id`         | UUID (PK)   | `gen_random_uuid()` | Unique household ID |
-| `created_at` | TIMESTAMPTZ | `now()`             | Creation timestamp  |
+| Column       | Type        | Default             | Description             |
+| ------------ | ----------- | ------------------- | ----------------------- |
+| `id`         | UUID (PK)   | `gen_random_uuid()` | Unique household ID     |
+| `name`       | TEXT        | `NULL`              | Optional household name |
+| `created_at` | TIMESTAMPTZ | `now()`             | Creation timestamp      |
+
+---
+
+### 1b. `household_invites`
+
+Short-code invite system for joining a household without sharing raw UUIDs.
+
+| Column           | Type        | Default                     | Description                                   |
+| ---------------- | ----------- | --------------------------- | --------------------------------------------- |
+| `id`             | UUID (PK)   | `gen_random_uuid()`         | Unique invite ID                              |
+| `household_id`   | UUID (FK)   | —                           | References `households(id)` ON DELETE CASCADE |
+| `code`           | TEXT UNIQUE | —                           | Short alphanumeric invite code                |
+| `created_by`     | UUID (FK)   | —                           | References `auth.users(id)` ON DELETE CASCADE |
+| `created_at`     | TIMESTAMPTZ | `now()`                     | Creation timestamp                            |
+| `expires_at`     | TIMESTAMPTZ | `now() + interval '7 days'` | Code expiry                                   |
+| `uses_remaining` | INTEGER     | `10`                        | Remaining uses before code is exhausted       |
+
+**RLS Policies:**
+
+- Members can SELECT/INSERT/DELETE their own household's invites
+- Any authenticated user can SELECT by code (required for join flow)
+
+**RPCs:**
+
+- `join_household_by_code(invite_code TEXT)` — SECURITY DEFINER; validates invite, checks `ALREADY_MEMBER`, updates `users.household_id`, decrements `uses_remaining`
+- `leave_household()` — SECURITY DEFINER; creates new solo household for caller, moves them out of current household
 
 ---
 

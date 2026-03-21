@@ -1,8 +1,13 @@
 ---
 name: agala-qa-checklist
-description: 'Pre-push and pre-release QA validation for the Agala grocery app. Use when asked to "test before push", "validate changes", "run QA checklist", "check before release", "pre-push validation", or before committing/pushing code changes. Reads QA_CHECKLIST.md and validates relevant test sections based on changed files.'
+description: >
+  Pre-push and pre-release QA validation for the Agala grocery app. Use when
+  asked to "test before push", "validate changes", "run QA checklist",
+  "בדוק לפני פוש", "תריץ צ'קליסט", "check before release", "pre-push validation",
+  or when validating specific changed files. Also used as Phase 2 of the
+  push-changes skill. Do NOT use alone for "push changes" — use push-changes skill.
 metadata:
-  version: 1.0.0
+  version: 1.1.0
   author: Copilot
 compatibility: Agala workspace only. Requires QA_CHECKLIST.md in the project root.
 ---
@@ -29,26 +34,26 @@ Run `git diff --name-only HEAD` (or `git diff --name-only main..HEAD` for branch
 
 Use this mapping to determine which checklist sections are relevant:
 
-| Changed File(s) | QA Sections to Run |
-|---|---|
-| `app/auth.tsx` | §1 Authentication |
-| `app/(tabs)/index.tsx` | §2 Search & Add, §3 Cart & Catalog, §4 Recommendations, Quick Smoke |
-| `src/components/SearchBar.tsx` | §2 Search & Add |
-| `src/components/AddProductSheet.tsx` | §2 Search & Add |
-| `src/components/ShoppingListItem.tsx` | §3 Cart & Catalog |
-| `src/components/RecommendationLine.tsx` | §4 Recommendations |
-| `src/components/CategorySheet.tsx` | §2 Search & Add (category flow) |
-| `src/components/SnoozeSheet.tsx` | §3 Cart Actions (swipe/snooze) |
-| `app/item/[id].tsx` | §5 Item Detail |
-| `app/(tabs)/two.tsx` | §6 Purchase History |
-| `app/(tabs)/settings.tsx` | §7 Settings |
-| `src/store/shoppingListStore.ts` | §2 Search & Add, §3 Cart & Catalog, §4 Recommendations, Quick Smoke |
-| `src/store/appSettingsStore.ts` | §7 Settings (toggles) |
-| `src/hooks/useSpeechRecognition.ts` | §2 Voice Input |
-| `src/utils/categoryDetector.ts` | §2 Add New Item (category detection) |
-| `constants/theme.ts` | §8 Dark Mode |
-| `app/_layout.tsx` | §8 RTL, Navigation |
-| `app/(tabs)/_layout.tsx` | §8 Navigation, Tab bar |
+| Changed File(s)                         | QA Sections to Run                                                  |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| `app/auth.tsx`                          | §1 Authentication                                                   |
+| `app/(tabs)/index.tsx`                  | §2 Search & Add, §3 Cart & Catalog, §4 Recommendations, Quick Smoke |
+| `src/components/SearchBar.tsx`          | §2 Search & Add                                                     |
+| `src/components/AddProductSheet.tsx`    | §2 Search & Add                                                     |
+| `src/components/ShoppingListItem.tsx`   | §3 Cart & Catalog                                                   |
+| `src/components/RecommendationLine.tsx` | §4 Recommendations                                                  |
+| `src/components/CategorySheet.tsx`      | §2 Search & Add (category flow)                                     |
+| `src/components/SnoozeSheet.tsx`        | §3 Cart Actions (swipe/snooze)                                      |
+| `app/item/[id].tsx`                     | §5 Item Detail                                                      |
+| `app/(tabs)/two.tsx`                    | §6 Purchase History                                                 |
+| `app/(tabs)/settings.tsx`               | §7 Settings                                                         |
+| `src/store/shoppingListStore.ts`        | §2 Search & Add, §3 Cart & Catalog, §4 Recommendations, Quick Smoke |
+| `src/store/appSettingsStore.ts`         | §7 Settings (toggles)                                               |
+| `src/hooks/useSpeechRecognition.ts`     | §2 Voice Input                                                      |
+| `src/utils/categoryDetector.ts`         | §2 Add New Item (category detection)                                |
+| `constants/theme.ts`                    | §8 Dark Mode                                                        |
+| `app/_layout.tsx`                       | §8 RTL, Navigation                                                  |
+| `app/(tabs)/_layout.tsx`                | §8 Navigation, Tab bar                                              |
 
 If **multiple sections** are affected, run all of them.
 

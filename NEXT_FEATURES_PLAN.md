@@ -100,10 +100,15 @@
   - Notify household members when items are added / checked off.
   - Notify when the nightly prediction adds items automatically.
 
-- [ ] **Deep Linking for Household Invites (הזמנה בקישור)**
-  - Replace manual code copy-paste with sharable link (`agala.app/join/<household_id>`).
-  - Configure Android App Links + Universal Links (iOS).
-  - Recipient taps link → app opens → auto-joins household.
+- [x] **Household Onboarding & Invites Overhaul (הזמנה למשק בית)** ✅ Implemented (v1.0.11)
+  - **Household name**: Add `name` column to `households` table. Creator sets name on signup, editable in Settings. Shown in invite message + join preview.
+  - **Short invite code**: New `household_invites` table (`code` 6-char, `household_id`, `expires_at`, `uses_remaining`). Replace raw UUID with human-friendly code like `AGALA-7X3K`.
+  - **Share via native sheet**: "הזמן למשק בית" button → `Share.share()` with pre-formatted Hebrew message + invite code. Natural for WhatsApp/SMS sharing.
+  - **No-restart join**: After successful join → `fetchList()` with new `household_id` → UI updates instantly. No more "restart app" message.
+  - **Member list in Settings**: Show household members (display names) from `users` where `household_id` matches.
+  - **Leave household**: "עזוב משק בית" → creates new solo household, keeps personal data.
+  - **QR code** (future): Generate QR from invite code for in-person sharing.
+  - **Deep link** (future): `agala.app/join/<code>` with Play Store fallback.
 
 - [x] **Public Privacy Policy URL (כתובת מדיניות פרטיות)** ✅ Implemented
   - Host `PRIVACY_POLICY.md` as a live web page (GitHub Pages / static site).
@@ -131,6 +136,34 @@
   - Opens a bottom sheet modal with 3 import options: file picker, clipboard paste, manual text input.
   - Same import logic as the Settings import — parses lines of "name" or "name,quantity".
   - Results shown in a popup overlay with success/error feedback.
+
+- [ ] **CI Email Notification Redesign (תיקון מייל CI)**
+  - Current release-notification email has poor formatting / doesn't look good.
+  - Redesign the HTML template in the GitHub Actions workflow (`cicd.yml`) for a cleaner layout.
+  - Improve Hebrew text styling, version/status sections, and Play Store link presentation.
+
+- [ ] **What's New Popup in Hebrew (חלון "מה חדש" בעברית)**
+  - Current `WhatsNewModal` fetches release notes from GitHub Releases API — content is in English.
+  - Switch data source to local Hebrew release notes (e.g. `RELEASE_NOTES_NEXT.md` or bundled asset).
+  - Display user-facing Hebrew update summary (same content as `whatsnew/he-IL`).
+  - Improve general styling: RTL alignment, section headers, spacing, readability.
+
+- [ ] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)**
+  - App content currently extends into system bars (status bar / navigation bar) on some devices.
+  - Wrap screens with `SafeAreaView` or use `useSafeAreaInsets()` to keep all content within the safe zone.
+  - After fix — validate the bulk-add flow (הוספה מרובה) still works correctly.
+
+- [x] **🔴 CRITICAL: Search Bar Add-Item Crash (קריסה בהוספת מוצר מחיפוש)** ✅ Fixed (v1.0.11)
+  - **Root cause**: Recommendations row in `listData` prevented `ListEmptyComponent` from rendering, hiding the add button. Fabric crash on view recycling when toggling between not-found and list states.
+  - **Fix**: Conditional render — not-found UI renders outside FlatList; recommendations hidden during search.
+
+- [x] **🔴 BUG: Shared Household Join Fails (משק בית משותף — לא מוצא את הקוד)** ✅ Fixed (v1.0.11)
+  - **Root cause**: RLS on `households` blocks SELECT for non-members. Old UUID copy-paste flow attempted direct `users` update which relied on FK constraint.
+  - **Fix**: New `join_household_by_code()` RPC (SECURITY DEFINER) validates invite code, checks `ALREADY_MEMBER`, updates `users.household_id`, decrements invite uses atomically.
+
+- [ ] **Voice Input: Auto-Stop Recording (מיקרופון — סיום הקלטה אוטומטי)**
+  - Currently the user must tap the microphone button again to stop recording.
+  - Add auto-stop behavior: detect silence / end-of-speech and finish recording automatically.
 
 ## Notes
 

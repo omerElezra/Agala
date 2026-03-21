@@ -1,7 +1,7 @@
 # Agala — Build & Test Progress
 
 > Smart Grocery List App (Expo + Supabase)
-> Last updated: 2026-03-17
+> Last updated: 2026-03-21
 
 ---
 
@@ -268,6 +268,27 @@
 
 ### 5u. AI Recommendations, Depletion Tracking, Voice Input & UX Overhaul (2026-03-17)
 
+- [x] See previous entries above.
+
+### 5v. Critical Bug Fixes, Household Invites & QA Infrastructure (2026-03-21)
+
+- [x] **🔴 Search bar add-item crash fixed** — Root cause: recommendations row in `listData` prevented `ListEmptyComponent` from rendering (FlatList always had ≥1 item). Fix: conditional render — not-found UI rendered outside FlatList; recommendations hidden during search via `isSearching` flag. Prevents Fabric `addViewAt` crash on Fabric renderer.
+- [x] **Household invite system** — Full overhaul of the household joining flow:
+  - New `household_invites` table (`code` TEXT UNIQUE, `household_id`, `created_by`, `expires_at`, `uses_remaining`)
+  - `households.name` column added — editable from Settings
+  - `join_household_by_code(invite_code)` RPC (SECURITY DEFINER) — validates invite, checks `ALREADY_MEMBER`, updates `users.household_id`, decrements uses
+  - `leave_household()` RPC (SECURITY DEFINER) — creates new solo household atomically, bypasses RLS INSERT restriction on `households`
+  - Short 6-char alphanumeric invite codes (excludes 0/O/1/I for readability)
+  - Native share sheet via `Share.share()` with pre-formatted Hebrew message
+  - No-restart join/leave — `refreshProfile()` triggers data reload via `useEffect([user?.household_id])`
+  - Member list displayed in Settings with (את/ה) marker
+  - Solo-leave blocked client-side; 2+ member leave requires confirmation
+  - `ALREADY_MEMBER` guard in DB prevents self-joining
+- [x] **Settings UI redesign (household section)** — Replaced UUID copy/paste with invite code UI: household name (editable), invite code (create/copy/share), member list, improved join input (`autoCapitalize="characters"`, max 8 chars)
+- [x] **TypeScript DB types updated** — Added `households.name`, `household_invites` table, `join_household_by_code` RPC, `leave_household` RPC to `src/types/database.ts`
+- [x] **QA Checklist + Skill** — Created `QA_CHECKLIST.md` with Quick Smoke Test and Full Release checklist; `.copilot/skills/agala-qa-checklist/SKILL.md` maps changed files to relevant QA sections
+- [x] **Migrations** — `supabase/migrations/20260318_household_invites.sql`, `supabase/migrations/20260321_leave_household_rpc.sql`
+
 - [x] **RecommendationLine component** — New `src/components/RecommendationLine.tsx` with horizontal scrollable cards, urgency color coding (red/orange/yellow), animated card dismissal (fade + scale), and instant replacement from candidate pool
 - [x] **Depletion % display in catalog** — Each "All Items" card shows consumption depletion percentage with Hebrew urgency labels ("לך תקנה", "תכף נגמר", "חצי קלאץ'", "יש, אל תדאג", "יש בשפע", "הרגע קנינו") and color indicators (red/orange/yellow)
 - [x] **Depletion sort mode** — New "עומד להיגמר" sort option in catalog; highest depletion sorted first, items without data sink to bottom
@@ -395,6 +416,27 @@
 ---
 
 > **Next feature roadmap**: [`NEXT_FEATURES_PLAN.md`](NEXT_FEATURES_PLAN.md)
+
+---
+
+### 17. Critical Bug Fixes + Household Invites Overhaul (v1.0.11, 2026-03-21)
+
+- [x] **Search add-item crash fixed** — `app/(tabs)/index.tsx`
+  - Root cause: recommendations row in `listData` prevented `ListEmptyComponent` rendering
+  - Fix: conditional render — not-found UI outside FlatList; recommendations hidden during search
+  - Prevents Fabric `addViewAt` crash on Fabric renderer (React Native New Architecture)
+- [x] **Household invite system** — `app/(tabs)/settings.tsx` + 2 SQL migrations
+  - `households.name` — editable household name, shown in invite message
+  - `household_invites` table — 6-char alphanumeric code, 7-day expiry, 10 uses per invite
+  - `join_household_by_code()` RPC (SECURITY DEFINER) — validates invite, guards `ALREADY_MEMBER`, updates `users.household_id`, decrements uses atomically
+  - `leave_household()` RPC (SECURITY DEFINER) — creates new solo household, bypasses RLS INSERT restriction
+  - Settings UI: household name edit, invite code generate + copy + share (native share sheet), members list, short-code join input, leave household button
+  - No-restart join/leave — `refreshProfile()` + data reload after every household change
+  - Solo-leave guard — blocked client-side when already the only member
+- [x] **TypeScript types updated** — `src/types/database.ts`
+  - Added `households.name`, `household_invites` table, `join_household_by_code` and `leave_household` RPCs
+- [x] **QA checklist updated** — household scenarios added to §7 Settings; household join bug marked Fixed
+- [x] **Skills created/updated** — `push-changes`, `pr-release-summary`, `agala-qa-checklist`
 
 ---
 
