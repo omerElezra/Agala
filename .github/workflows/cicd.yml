@@ -121,6 +121,9 @@ jobs:
           "
           echo "Updated app version to ${VERSION}"
 
+      - name: Generate Hebrew notes for in-app popup and Google Play
+        run: node scripts/generate-release-notes.js "${{ needs.version.outputs.number }}" --embed-in-app > /dev/null
+
       - name: Setup EAS
         uses: expo/expo-github-action@v8
         with:
@@ -136,9 +139,6 @@ jobs:
           EAS_NO_VCS: "1"
           EAS_BUILD_NO_EXPO_GO_WARNING: "true"
         run: eas build --platform android --profile production --non-interactive
-
-      - name: Generate Google Play release notes
-        run: node scripts/generate-release-notes.js "${{ needs.version.outputs.number }}" > /dev/null
 
       - name: Write Google Service Account key
         if: env.GOOGLE_SERVICE_ACCOUNT_KEY != ''

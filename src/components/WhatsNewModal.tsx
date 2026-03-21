@@ -13,102 +13,84 @@ import {
 import { dark } from "@/constants/theme";
 
 const STORAGE_KEY = "whats_new_last_seen_version";
-const GITHUB_RELEASES_URL =
-  "https://api.github.com/repos/omerElezra/Agala/releases/latest";
 
-/**
- * Map conventional-commit prefixes to Hebrew category headers.
- * Mirrors scripts/generate-release-notes.js for consistency.
- */
-const PREFIX_MAP: Record<string, string | null> = {
-  feat: "✨ תכונות חדשות",
-  fix: "🐛 תיקוני באגים",
-  ui: "🎨 עיצוב וממשק",
-  ai: "🧠 חיזוי חכם",
-  perf: "⚡ שיפורי ביצועים",
-  refactor: "♻️ שיפורים",
-  docs: null,
-  chore: null,
-  ci: null,
-  test: null,
-};
+type NotesSection = { category: string; items: string[] };
 
-/** Parse a GitHub release body (markdown bullet list) into categorised items */
-function parseReleaseBody(
-  body: string,
-): { category: string; items: string[] }[] {
-  const lines = body.split("\n").filter((l) => l.trim());
-  const buckets: Record<string, string[]> = {};
+function parseEmbeddedHebrewNotes(text: string): NotesSection[] {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const sections: NotesSection[] = [];
+  let currentCategory = "";
+  let currentItems: string[] = [];
+
+  const flush = () => {
+    if (!currentCategory || currentItems.length === 0) return;
+    sections.push({ category: currentCategory, items: currentItems });
+    currentItems = [];
+  };
 
   for (const line of lines) {
-    // GitHub auto-generated notes: "* commit msg by @user in #123"
-    const m = line.match(/^\*\s+(.+?)(?:\s+by\s+@|$)/);
-    if (!m) continue;
-    const msg = m[1]?.trim() ?? "";
+    if (line.startsWith("🛒")) continue;
 
-    const prefixMatch = msg.match(/^(\w+)(?:\([^)]*\))?:\s*(.+)/);
-    if (prefixMatch) {
-      const type = (prefixMatch[1] ?? "").toLowerCase();
-      const text = (prefixMatch[2] ?? "").trim();
-      const label = PREFIX_MAP[type];
-      if (label === null) continue;
-      if (label) {
-        (buckets[label] ||= []).push(text);
-        continue;
-      }
+    if (line.startsWith("•")) {
+      const item = line.slice(1).trim();
+      if (!item) continue;
+      if (!currentCategory) currentCategory = "🔄 מה חדש?";
+      currentItems.push(item);
+      continue;
     }
-    // Skip chore-like
-    if (/^(chore|ci|test|merge|bump)/i.test(msg)) continue;
-    (buckets["🔄 שינויים נוספים"] ||= []).push(msg);
+
+    flush();
+    currentCategory = line;
   }
 
-  return Object.entries(buckets).map(([category, items]) => ({
-    category,
-    items,
-  }));
+  flush();
+
+  if (sections.length === 0) {
+    return [
+      {
+        category: "🔄 מה חדש?",
+        items: ["שיפורים כלליים ותיקוני באגים"],
+      },
+    ];
+  }
+
+  return sections;
 }
 
 export function WhatsNewModal() {
   const [visible, setVisible] = useState(false);
   const [version, setVersion] = useState("");
-  const [sections, setSections] = useState<
-    { category: string; items: string[] }[]
-  >([]);
+  const [sections, setSections] = useState<NotesSection[]>([]);
 
   const check = useCallback(async () => {
     try {
       const currentVersion = Constants.expoConfig?.version ?? "0.0.0";
       const lastSeen = await AsyncStorage.getItem(STORAGE_KEY);
+      const extra = (Constants.expoConfig?.extra ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const embeddedNotes =
+        typeof extra.clientWhatsNewHe === "string"
+          ? extra.clientWhatsNewHe
+          : "";
+      const embeddedVersion =
+        typeof extra.clientWhatsNewVersion === "string"
+          ? extra.clientWhatsNewVersion
+          : "";
 
       // Already seen this version
       if (lastSeen === currentVersion) return;
 
-      const res = await fetch(GITHUB_RELEASES_URL, {
-        headers: { Accept: "application/vnd.github.v3+json" },
-      });
-      if (!res.ok) return;
+      // In-app popup is Hebrew and embedded locally during CI build.
+      if (!embeddedNotes || embeddedVersion !== currentVersion) return;
 
-      const data = await res.json();
-      const tagVersion: string = (data.tag_name ?? "").replace(/^v/, "");
-      const body: string = data.body ?? "";
-
-      // Only show if the release tag matches our current app version
-      if (tagVersion !== currentVersion) return;
-
-      const parsed = parseReleaseBody(body);
-      if (parsed.length === 0) {
-        // Even with no structured notes, show a generic message
-        setSections([
-          {
-            category: "🔄 מה חדש?",
-            items: ["שיפורים כלליים ותיקוני באגים"],
-          },
-        ]);
-      } else {
-        setSections(parsed);
-      }
-
-      setVersion(tagVersion);
+      setSections(parseEmbeddedHebrewNotes(embeddedNotes));
+      setVersion(currentVersion);
       setVisible(true);
     } catch {
       // Silent fail — don't block the app
@@ -221,6 +203,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   section: {
+    width: "100%",
     marginBottom: 14,
   },
   sectionTitle: {
@@ -228,12 +211,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: dark.accent,
     marginBottom: 6,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   item: {
     fontSize: 14,
     color: dark.text,
     lineHeight: 22,
     paddingStart: 4,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   button: {
     backgroundColor: dark.accent,

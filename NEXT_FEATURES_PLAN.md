@@ -142,11 +142,19 @@
   - Redesign the HTML template in the GitHub Actions workflow (`cicd.yml`) for a cleaner layout.
   - Improve Hebrew text styling, version/status sections, and Play Store link presentation.
 
-- [ ] **What's New Popup in Hebrew (חלון "מה חדש" בעברית)**
-  - Current `WhatsNewModal` fetches release notes from GitHub Releases API — content is in English.
-  - Switch data source to local Hebrew release notes (e.g. `RELEASE_NOTES_NEXT.md` or bundled asset).
-  - Display user-facing Hebrew update summary (same content as `whatsnew/he-IL`).
-  - Improve general styling: RTL alignment, section headers, spacing, readability.
+- [ ] **Automated QA with Playwright (QA אוטומטי עם Playwright)**
+  - Add a Playwright smoke suite for critical flows: auth, add item, mark purchased, and bulk import.
+  - Run tests automatically in GitHub Actions on every PR and on nightly schedule.
+  - Upload artifacts on failure (screenshots, videos, traces) to speed up debugging.
+  - Add a required status check so broken core flows cannot be merged.
+
+- [x] **What's New Popup in Hebrew (חלון "מה חדש" בעברית)** ✅ Implemented (2026-03-21)
+  - Use a **two-track release notes strategy**:
+    - **Client-facing (Hebrew, short)**: concise, quick updates/news for in-app popup (`WhatsNewModal`).
+    - **GitHub release (English, standard)**: full professional changelog as the default public release format.
+  - Switch `WhatsNewModal` data source to local Hebrew notes (same content family as `whatsnew/he-IL`), not GitHub Releases API.
+  - Keep English release notes in GitHub as canonical engineering/public release documentation.
+  - Improve popup styling: RTL alignment, section headers, spacing, readability.
 
 - [x] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)** ✅ Implemented (v1.0.11)
   - Installed `expo-system-ui` (root background `#0F0F1A`) + `expo-navigation-bar` (transparent, absolute position).
@@ -163,9 +171,13 @@
   - **Root cause**: RLS on `households` blocks SELECT for non-members. Old UUID copy-paste flow attempted direct `users` update which relied on FK constraint.
   - **Fix**: New `join_household_by_code()` RPC (SECURITY DEFINER) validates invite code, checks `ALREADY_MEMBER`, updates `users.household_id`, decrements invite uses atomically.
 
-- [ ] **Voice Input: Auto-Stop Recording (מיקרופון — סיום הקלטה אוטומטי)**
+- [x] **Voice Input: Auto-Stop Recording (מיקרופון — סיום הקלטה אוטומטי)** ✅ Implemented (2026-03-21)
   - Currently the user must tap the microphone button again to stop recording.
-  - Add auto-stop behavior: detect silence / end-of-speech and finish recording automatically.
+  - Apply auto-stop behavior to both flows:
+    - Search/add single item voice input.
+    - Multi-add items voice input flow.
+  - Detect silence / end-of-speech and finish recording automatically in all voice entry points.
+  - Shared speech hook now supports silence/final-result auto-stop; Home screen supports target-based voice input for both search and multi-add manual input.
 
 ## Notes
 

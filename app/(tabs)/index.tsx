@@ -55,14 +55,14 @@ const ALL_SORT_OPTIONS: { key: AllProductsSortMode; label: string }[] = [
   { key: "depletion", label: "עומד להיגמר" },
 ];
 
-/** Hebrew depletion title + color — how close to running out */
-function getDepletionLabel(pct: number): { title: string; color: string } {
-  if (pct >= 100) return { title: "לך תקנה", color: "rgba(239, 68, 68, 0.7)" }; // Red
-  if (pct >= 80) return { title: "תכף נגמר", color: "rgba(249, 115, 22, 0.7)" }; // Orange
-  if (pct >= 60)
+/** Hebrew stock title + color — 0%=empty, 100%=full */
+function getStockLabel(pct: number): { title: string; color: string } {
+  if (pct <= 0) return { title: "לך תקנה", color: "rgba(239, 68, 68, 0.7)" }; // Red
+  if (pct <= 20) return { title: "תכף נגמר", color: "rgba(249, 115, 22, 0.7)" }; // Orange
+  if (pct <= 40)
     return { title: "חצי קלאץ'", color: "rgba(251, 191, 36, 0.7)" }; // Yellow
-  if (pct >= 30) return { title: "יש, אל תדאג", color: dark.textSecondary };
-  if (pct >= 1) return { title: "יש בשפע", color: dark.textSecondary };
+  if (pct <= 70) return { title: "יש, אל תדאג", color: dark.textSecondary };
+  if (pct < 100) return { title: "יש בשפע", color: dark.textSecondary };
   return { title: "הרגע קנינו", color: dark.textMuted };
 }
 
@@ -127,6 +127,9 @@ export default function HomeScreen() {
     text: string;
     type: "success" | "error";
   } | null>(null);
+  const [voiceTarget, setVoiceTarget] = useState<"search" | "manual" | null>(
+    null,
+  );
 
   // ── Voice input ────────────────────────────────────────────
   const {
@@ -134,7 +137,47 @@ export default function HomeScreen() {
     isListening,
     startListening,
     stopListening,
-  } = useSpeechRecognition((text) => setSearchQuery(text));
+  } = useSpeechRecognition(
+    (text) => {
+      if (voiceTarget === "manual") {
+        setManualText((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+        return;
+      }
+      setSearchQuery(text);
+    },
+    {
+      autoStop: true,
+      silenceMs: 1400,
+      finalStopMs: 300,
+    },
+  );
+
+  const isSearchVoiceActive = isListening && voiceTarget === "search";
+  const isManualVoiceActive = isListening && voiceTarget === "manual";
+
+  const toggleVoiceInput = useCallback(
+    async (target: "search" | "manual") => {
+      if (isListening && voiceTarget === target) {
+        stopListening();
+        setVoiceTarget(null);
+        return;
+      }
+
+      if (isListening && voiceTarget !== target) {
+        stopListening();
+      }
+
+      setVoiceTarget(target);
+      await startListening();
+    },
+    [isListening, voiceTarget, startListening, stopListening],
+  );
+
+  useEffect(() => {
+    if (!isListening && voiceTarget) {
+      setVoiceTarget(null);
+    }
+  }, [isListening, voiceTarget]);
 
   // ── Bulk import helpers ─────────────────────────────────────
   const showImportBanner = (text: string, type: "success" | "error") => {
@@ -266,6 +309,16 @@ export default function HomeScreen() {
     setManualText("");
     setShowManualInput(false);
   }, [manualText, handleBulkImport]);
+
+  const closeImportSheet = useCallback(() => {
+    if (isManualVoiceActive) {
+      stopListening();
+      setVoiceTarget(null);
+    }
+    setShowImportSheet(false);
+    setShowManualInput(false);
+    setManualText("");
+  }, [isManualVoiceActive, stopListening]);
 
   // ── Add item directly from search (no-match case) ──────────
   const handleAddFromSearch = useCallback(async () => {
@@ -701,9 +754,10 @@ export default function HomeScreen() {
               );
             }
             if (allProductsSort === "depletion") {
-              const da = depletionPercentMap.get(a.product_id) ?? -1;
-              const db = depletionPercentMap.get(b.product_id) ?? -1;
-              return (db - da) * ad;
+              const stockA = depletionPercentMap.get(a.product_id) ?? 101;
+              const stockB = depletionPercentMap.get(b.product_id) ?? 101;
+              // Default sort focuses low stock first ("עומד להיגמר").
+              return (stockA - stockB) * ad;
             }
             return (
               (a.product?.name ?? "").localeCompare(
@@ -930,11 +984,10 @@ export default function HomeScreen() {
       // Product item in "All Products" section
       if ("type" in row && row.type === "all-product-item") {
         const isInCart = activeProductIds.has(row.item.product_id);
-        const depletion = showDepletion
+        const stockPct = showDepletion
           ? depletionPercentMap.get(row.item.product_id)
           : undefined;
-        const deplLabel =
-          depletion != null ? getDepletionLabel(depletion) : null;
+        const stockLabel = stockPct != null ? getStockLabel(stockPct) : null;
         return (
           <View style={styles.allProductCard}>
             {isInCart ? (
@@ -972,15 +1025,17 @@ export default function HomeScreen() {
                 {row.item.product?.category ?? ""}
               </Text>
             </TouchableOpacity>
-            {deplLabel && (
+            {stockLabel && (
               <View style={styles.depletionEnd}>
-                <Text style={[styles.depletionPct, { color: deplLabel.color }]}>
-                  {depletion}%
+                <Text
+                  style={[styles.depletionPct, { color: stockLabel.color }]}
+                >
+                  {stockPct}%
                 </Text>
                 <Text
-                  style={[styles.depletionTitle, { color: deplLabel.color }]}
+                  style={[styles.depletionTitle, { color: stockLabel.color }]}
                 >
-                  {deplLabel.title}
+                  {stockLabel.title}
                 </Text>
               </View>
             )}
@@ -1078,14 +1133,19 @@ export default function HomeScreen() {
             )}
             {voiceAvailable && (
               <TouchableOpacity
-                style={[styles.micBtn, isListening && styles.micBtnActive]}
-                onPress={isListening ? stopListening : startListening}
+                style={[
+                  styles.micBtn,
+                  isSearchVoiceActive && styles.micBtnActive,
+                ]}
+                onPress={() => {
+                  void toggleVoiceInput("search");
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name={isListening ? "mic" : "mic-outline"}
+                  name={isSearchVoiceActive ? "mic" : "mic-outline"}
                   size={20}
-                  color={isListening ? "#fff" : dark.accent}
+                  color={isSearchVoiceActive ? "#fff" : dark.accent}
                 />
               </TouchableOpacity>
             )}
@@ -1189,22 +1249,20 @@ export default function HomeScreen() {
         transparent
         animationType="slide"
         statusBarTranslucent
-        onRequestClose={() => {
-          setShowImportSheet(false);
-          setShowManualInput(false);
-          setManualText("");
-        }}
+        onRequestClose={closeImportSheet}
       >
         <TouchableOpacity
           style={styles.importOverlay}
           activeOpacity={1}
-          onPress={() => {
-            setShowImportSheet(false);
-            setShowManualInput(false);
-            setManualText("");
-          }}
+          onPress={closeImportSheet}
         >
-          <TouchableOpacity activeOpacity={1} style={[styles.importSheet, { paddingBottom: Math.max(32, insets.bottom + 16) }]}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.importSheet,
+              { paddingBottom: Math.max(32, insets.bottom + 16) },
+            ]}
+          >
             {/* Handle bar */}
             <View style={styles.importHandle} />
 
@@ -1266,6 +1324,41 @@ export default function HomeScreen() {
                   numberOfLines={5}
                   textAlignVertical="top"
                 />
+                {voiceAvailable && (
+                  <View style={styles.importVoiceRow}>
+                    <Text style={styles.importVoiceHint}>
+                      {isManualVoiceActive
+                        ? "מקשיב... נעצר אוטומטית בסיום דיבור"
+                        : "אפשר להכתיב מוצרים בקול"}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.importVoiceBtn,
+                        isManualVoiceActive && styles.importVoiceBtnActive,
+                      ]}
+                      onPress={() => {
+                        void toggleVoiceInput("manual");
+                      }}
+                      disabled={importing}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={isManualVoiceActive ? "mic" : "mic-outline"}
+                        size={18}
+                        color={isManualVoiceActive ? "#fff" : dark.accent}
+                      />
+                      <Text
+                        style={[
+                          styles.importVoiceBtnText,
+                          isManualVoiceActive &&
+                            styles.importVoiceBtnTextActive,
+                        ]}
+                      >
+                        {isManualVoiceActive ? "מקליט" : "הכתבה"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[
                     styles.importSubmitBtn,
@@ -1501,6 +1594,43 @@ const styles = StyleSheet.create({
     color: dark.inputText,
     writingDirection: "rtl",
     minHeight: 120,
+  },
+  importVoiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  importVoiceHint: {
+    flex: 1,
+    fontSize: 12,
+    color: dark.textSecondary,
+    textAlign: "left",
+  },
+  importVoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: 88,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: dark.accent,
+    backgroundColor: dark.surface,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  importVoiceBtnActive: {
+    backgroundColor: dark.error,
+    borderColor: dark.error,
+  },
+  importVoiceBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: dark.accent,
+  },
+  importVoiceBtnTextActive: {
+    color: "#fff",
   },
   importSubmitBtn: {
     backgroundColor: dark.accent,

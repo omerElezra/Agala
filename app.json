@@ -28,11 +28,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.omerelezra.agala",
-      "permissions": [
-        "INTERNET",
-        "VIBRATE",
-        "RECORD_AUDIO"
-      ]
+      "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",

@@ -13,7 +13,9 @@ const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
-const version = process.argv[2] || "0.0.0";
+const args = process.argv.slice(2);
+const version = args[0] || "0.0.0";
+const embedInApp = args.includes("--embed-in-app");
 
 // Map conventional-commit prefixes to Hebrew categories
 const CATEGORY_MAP = {
@@ -196,6 +198,22 @@ fs.writeFileSync(
   path.join(whatsnewDir, "he-IL"),
   hebrewNotes.slice(0, 500) + "\n",
 );
+
+if (embedInApp) {
+  try {
+    const appJsonPath = path.join(process.cwd(), "app.json");
+    const appJson = JSON.parse(fs.readFileSync(appJsonPath, "utf8"));
+
+    appJson.expo = appJson.expo || {};
+    appJson.expo.extra = appJson.expo.extra || {};
+    appJson.expo.extra.clientWhatsNewVersion = version;
+    appJson.expo.extra.clientWhatsNewHe = hebrewNotes.slice(0, 500);
+
+    fs.writeFileSync(appJsonPath, JSON.stringify(appJson, null, 2) + "\n");
+  } catch {
+    // Keep script resilient in CI/local usage.
+  }
+}
 
 // Output JSON for CI to consume
 const output = {

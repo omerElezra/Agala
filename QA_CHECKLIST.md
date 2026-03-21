@@ -119,7 +119,7 @@
 - [ ] Section header shows item count badge
 - [ ] Collapse/expand toggle works
 - [ ] Sort chips: שם, קטגוריה, שונה לאחרונה, עומד להיגמר
-- [ ] Depletion % labels visible (when toggle on): לך תקנה / תכף נגמר / חצי קלאץ' / יש, אל תדאג / יש בשפע / הרגע קנינו
+- [ ] Stock % labels visible (0%=empty, 100%=full) כשהטוגל פעיל: לך תקנה / תכף נגמר / חצי קלאץ' / יש, אל תדאג / יש בשפע / הרגע קנינו
 - [ ] Tap catalog item → reactivates to cart
 - [ ] Tap product info area → navigates to item detail
 
