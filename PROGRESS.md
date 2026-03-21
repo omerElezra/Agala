@@ -289,6 +289,8 @@
 - [x] **QA Checklist + Skill** — Created `QA_CHECKLIST.md` with Quick Smoke Test and Full Release checklist; `.copilot/skills/agala-qa-checklist/SKILL.md` maps changed files to relevant QA sections
 - [x] **Migrations** — `supabase/migrations/20260318_household_invites.sql`, `supabase/migrations/20260321_leave_household_rpc.sql`
 
+- [x] **Safe area / edge-to-edge display fix** — Installed `expo-system-ui` (root background `#0F0F1A`) + `expo-navigation-bar` (transparent, absolute). Root `_layout.tsx` sets `NavigationBar.setBackgroundColorAsync("transparent")` + light buttons. Removed double bottom inset from tab screens (`edges={[]}` instead of `edges={["bottom"]}`) since tab bar already adds `insets.bottom`. Import sheet uses dynamic `paddingBottom: Math.max(32, insets.bottom + 16)` for proper edge-to-edge spacing.
+
 - [x] **RecommendationLine component** — New `src/components/RecommendationLine.tsx` with horizontal scrollable cards, urgency color coding (red/orange/yellow), animated card dismissal (fade + scale), and instant replacement from candidate pool
 - [x] **Depletion % display in catalog** — Each "All Items" card shows consumption depletion percentage with Hebrew urgency labels ("לך תקנה", "תכף נגמר", "חצי קלאץ'", "יש, אל תדאג", "יש בשפע", "הרגע קנינו") and color indicators (red/orange/yellow)
 - [x] **Depletion sort mode** — New "עומד להיגמר" sort option in catalog; highest depletion sorted first, items without data sink to bottom

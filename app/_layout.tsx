@@ -9,6 +9,7 @@ import { useFonts } from "expo-font";
 import { Redirect, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import * as NavigationBar from "expo-navigation-bar";
 import { useEffect } from "react";
 import {
   ActivityIndicator,
@@ -114,6 +115,12 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { session, user, signOut, isLoading } = useAuth();
+
+  // Configure Android navigation bar for edge-to-edge
+  useEffect(() => {
+    NavigationBar.setBackgroundColorAsync("transparent");
+    NavigationBar.setButtonStyleAsync("light");
+  }, []);
 
   // Show loading spinner while checking auth state
   if (isLoading) {

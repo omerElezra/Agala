@@ -148,10 +148,12 @@
   - Display user-facing Hebrew update summary (same content as `whatsnew/he-IL`).
   - Improve general styling: RTL alignment, section headers, spacing, readability.
 
-- [ ] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)**
-  - App content currently extends into system bars (status bar / navigation bar) on some devices.
-  - Wrap screens with `SafeAreaView` or use `useSafeAreaInsets()` to keep all content within the safe zone.
-  - After fix — validate the bulk-add flow (הוספה מרובה) still works correctly.
+- [x] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)** ✅ Implemented (v1.0.11)
+  - Installed `expo-system-ui` (root background `#0F0F1A`) + `expo-navigation-bar` (transparent, absolute position).
+  - `_layout.tsx`: set `NavigationBar.setBackgroundColorAsync("transparent")` + light button style on mount.
+  - Removed double bottom inset on tab screens (`edges={[]}` instead of `edges={["bottom"]}`); tab bar already handles `insets.bottom`.
+  - Import sheet "הוספה מרובה": dynamic `paddingBottom: Math.max(32, insets.bottom + 16)` for edge-to-edge.
+  - Validated bulk-add flow still works correctly.
 
 - [x] **🔴 CRITICAL: Search Bar Add-Item Crash (קריסה בהוספת מוצר מחיפוש)** ✅ Fixed (v1.0.11)
   - **Root cause**: Recommendations row in `listData` prevented `ListEmptyComponent` from rendering, hiding the add button. Fabric crash on view recycling when toggling between not-found and list states.

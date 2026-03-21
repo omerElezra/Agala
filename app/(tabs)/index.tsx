@@ -34,7 +34,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 type CartSortMode = "name" | "category" | "recent";
 type AllProductsSortMode = "name" | "category" | "recent" | "depletion";
@@ -76,6 +79,7 @@ type ListRow =
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const {
     items,
@@ -1041,7 +1045,7 @@ export default function HomeScreen() {
 
   // ── Main UI (matches main.html design) ─────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* ── Sticky header area ── */}
       <View style={styles.headerArea}>
         {/* Title row */}
@@ -1200,7 +1204,7 @@ export default function HomeScreen() {
             setManualText("");
           }}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.importSheet}>
+          <TouchableOpacity activeOpacity={1} style={[styles.importSheet, { paddingBottom: Math.max(32, insets.bottom + 16) }]}>
             {/* Handle bar */}
             <View style={styles.importHandle} />
 
