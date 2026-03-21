@@ -471,11 +471,14 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
         } else {
           const { error: ruleError } = await supabase
             .from("household_inventory_rules")
-            .insert({
-              household_id: item.household_id,
-              product_id: item.product_id,
-              last_purchased_at: now,
-            });
+            .upsert(
+              {
+                household_id: item.household_id,
+                product_id: item.product_id,
+                last_purchased_at: now,
+              },
+              { onConflict: "household_id,product_id" },
+            );
           if (ruleError) {
             console.error(
               "[store] inventory rule insert failed:",
@@ -679,11 +682,14 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
               .maybeSingle();
 
             if (!existingRule) {
-              await supabase.from("household_inventory_rules").insert({
-                household_id: householdId,
-                product_id: productId,
-                last_purchased_at: now,
-              });
+              await supabase.from("household_inventory_rules").upsert(
+                {
+                  household_id: householdId,
+                  product_id: productId,
+                  last_purchased_at: now,
+                },
+                { onConflict: "household_id,product_id" },
+              );
             }
           }
         }

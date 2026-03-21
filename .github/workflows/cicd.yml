@@ -235,41 +235,98 @@ jobs:
           from: "עגלה CI/CD <${{ secrets.EMAIL_FROM }}>"
           subject: "🛒 עגלה ${{ needs.version.outputs.number }} — גרסה חדשה זמינה לבדיקה!"
           html_body: |
-            <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; background: #0f0f1a; color: #e0e0f0; padding: 32px; border-radius: 12px;">
-              <h1 style="color: #8b9fe8; margin-bottom: 4px;">🛒 עגלה — גרסה ${{ needs.version.outputs.number }}</h1>
-              <p style="color: #888; margin-top: 0;">עודכנה בהצלחה ● ${{ github.event.head_commit.timestamp }}</p>
+            <!DOCTYPE html>
+            <html lang="he" dir="rtl">
+            <head><meta charset="utf-8" /></head>
+            <body style="margin: 0; padding: 0; background: #0a0a14; font-family: 'Segoe UI', Arial, sans-serif;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #0a0a14;">
+                <tr><td align="center" style="padding: 32px 16px;">
+                  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background: #12122a; border-radius: 16px; overflow: hidden; border: 1px solid #252542;">
 
-              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+                    <!-- Header banner -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, #6C5DD3 0%, #8b9fe8 100%); padding: 28px 32px; text-align: center;">
+                        <div style="font-size: 36px; margin-bottom: 8px;">🛒</div>
+                        <div style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: -0.3px;">עגלה</div>
+                        <div style="margin-top: 10px;">
+                          <span style="background: rgba(255,255,255,0.2); color: #fff; padding: 5px 16px; border-radius: 20px; font-size: 14px; font-weight: 600;">
+                            גרסה ${{ needs.version.outputs.number }}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
 
-              <h2 style="color: #e0e0f0;">🎉 מה חדש בגרסה הזו?</h2>
-              ${{ steps.notes.outputs.html }}
+                    <!-- Status bar -->
+                    <tr>
+                      <td style="background: #0d2818; padding: 12px 32px; text-align: center;">
+                        <span style="color: #4ADE80; font-size: 14px; font-weight: 600;">✅ Build הצליח · פורסם ב-Google Play Internal Testing</span>
+                      </td>
+                    </tr>
 
-              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
+                    <!-- What's new section -->
+                    <tr>
+                      <td style="padding: 28px 32px 8px 32px;">
+                        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                          <tr>
+                            <td style="border-right: 3px solid #6C5DD3; padding-right: 16px;">
+                              <div style="font-size: 18px; font-weight: 700; color: #e0e0f0; margin-bottom: 4px;">🎉 מה חדש?</div>
+                              <div style="font-size: 12px; color: #5B5875;">${{ github.event.head_commit.timestamp }}</div>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 32px 24px 32px;">
+                        <div style="background: #1a1a2e; border-radius: 10px; padding: 20px; color: #c0c0d8; font-size: 14px; line-height: 1.8;">
+                          ${{ steps.notes.outputs.html }}
+                        </div>
+                      </td>
+                    </tr>
 
-              <h2 style="color: #e0e0f0;">📲 איך להתקין?</h2>
-              <p style="color: #c0c0d8; line-height: 1.7;">
-                הגרסה הועלתה ל-<strong>Internal Testing</strong> ב-Google Play.<br/>
-                לחץ על הקישור למטה כדי להצטרף לתוכנית הבדיקות:
-              </p>
+                    <!-- Divider -->
+                    <tr><td style="padding: 0 32px;"><div style="border-top: 1px solid #252542;"></div></td></tr>
 
-              <div style="text-align: center; margin: 24px 0;">
-                <a href="https://play.google.com/store/apps/details?id=com.omerelezra.agala"
-                   style="background: #8b9fe8; color: #0f0f1a; padding: 14px 32px; border-radius: 8px;
-                          text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
-                  📥 הורד מ-Google Play
-                </a>
-              </div>
+                    <!-- Install CTA -->
+                    <tr>
+                      <td style="padding: 24px 32px; text-align: center;">
+                        <div style="font-size: 16px; font-weight: 700; color: #e0e0f0; margin-bottom: 8px;">📲 התקנה ובדיקה</div>
+                        <div style="font-size: 13px; color: #94A3B8; margin-bottom: 20px; line-height: 1.6;">
+                          הגרסה זמינה ב-Internal Testing ב-Google Play
+                        </div>
+                        <a href="https://play.google.com/store/apps/details?id=com.omerelezra.agala"
+                           style="background: #6C5DD3; color: #fff; padding: 14px 40px; border-radius: 10px;
+                                  text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;
+                                  letter-spacing: 0.3px;">
+                          📥 הורד מ-Google Play
+                        </a>
+                      </td>
+                    </tr>
 
-              <p style="color: #c0c0d8; font-size: 13px; line-height: 1.6;">
-                🔗 GitHub Release:
-                <a href="https://github.com/omerElezra/Agala/releases/tag/${{ needs.version.outputs.tag }}"
-                   style="color: #8b9fe8;">
-                  github.com/omerElezra/Agala/releases/${{ needs.version.outputs.tag }}
-                </a>
-              </p>
+                    <!-- Divider -->
+                    <tr><td style="padding: 0 32px;"><div style="border-top: 1px solid #252542;"></div></td></tr>
 
-              <hr style="border-color: #2a2a3e; margin: 24px 0;" />
-              <p style="color: #555; font-size: 12px; text-align: center;">
-                נשלח אוטומטית על ידי GitHub Actions · עגלה CI/CD
-              </p>
-            </div>
+                    <!-- Links footer -->
+                    <tr>
+                      <td style="padding: 20px 32px; text-align: center;">
+                        <a href="https://github.com/omerElezra/Agala/releases/tag/${{ needs.version.outputs.tag }}"
+                           style="color: #8b9fe8; font-size: 13px; text-decoration: none;">
+                          🔗 GitHub Release — ${{ needs.version.outputs.tag }}
+                        </a>
+                      </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background: #0a0a14; padding: 16px 32px; text-align: center; border-top: 1px solid #252542;">
+                        <div style="color: #5B5875; font-size: 11px; line-height: 1.6;">
+                          נשלח אוטומטית על ידי GitHub Actions · עגלה CI/CD
+                        </div>
+                      </td>
+                    </tr>
+
+                  </table>
+                </td></tr>
+              </table>
+            </body>
+            </html>

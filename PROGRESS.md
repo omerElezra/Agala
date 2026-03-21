@@ -440,6 +440,30 @@
 - [x] **QA checklist updated** — household scenarios added to §7 Settings; household join bug marked Fixed
 - [x] **Skills created/updated** — `push-changes`, `pr-release-summary`, `agala-qa-checklist`
 
+### Step 5x — Add-Item Destination Toggle, CI Email Redesign, Bug Fixes (2026-03-22)
+
+- [x] **Add-item destination toggle** — `app/(tabs)/index.tsx`
+  - Segmented toggle in not-found overlay: "לקטלוג" (catalog) vs "לעגלה" (cart)
+  - Default: catalog. Button color/label changes dynamically (purple=catalog, green=cart)
+  - Works in both direct add and CategorySheet pending-add flow; resets after each add
+  - Moved not-found overlay to top of screen (`justifyContent: flex-start`, `paddingTop: 32`) so keyboard doesn't hide it
+- [x] **CI email notification redesign** — `.github/workflows/cicd.yml`
+  - Table-based HTML layout for cross-client compatibility (Gmail, Outlook, Apple Mail)
+  - Gradient header banner, version badge pill, green status bar, bordered "What's New" section
+  - Purple CTA button, GitHub Release link, matching app theme colors, full RTL + `lang="he"`
+- [x] **Inventory rule upsert fix** — `src/store/shoppingListStore.ts`
+  - Changed `household_inventory_rules` `.insert()` to `.upsert({ onConflict: "household_id,product_id" })`
+  - Fixes "duplicate key" error when buying an item that already has an inventory rule
+  - Applied to both `checkOffItem` and `addItem` code paths
+- [x] **Stock % inversion** — `shoppingListStore.ts`, `index.tsx`, docs
+  - 0% = empty, 100% = full (inverted from previous depletion model)
+  - 6-tier Hebrew labels: לך תקנה / תכף נגמר / חצי קלאץ' / יש אל תדאג / יש בשפע / הרגע קנינו
+  - Sort by low-stock-first in "עומד להיגמר" mode
+- [x] **Voice auto-stop** — `useSpeechRecognition.ts`, `index.tsx`
+  - Silence/final-result timers auto-stop recording in both search and multi-add flows
+- [x] **What's New dual-track** — `WhatsNewModal.tsx`, `generate-release-notes.js`, `cicd.yml`
+  - Hebrew in-app popup from `app.json` extras; English GitHub Release unchanged
+
 ---
 
 ## Architecture Reference

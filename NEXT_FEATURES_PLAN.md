@@ -127,9 +127,12 @@
   - If up to date → shows success banner.
   - Fallback on error: opens Play Store directly so user can check manually.
 
-- [ ] **Add-Item Default Behavior Preference (העדפת הוספת מוצר)**
-  - Add preference in Settings to choose default behavior: add to product list or shopping cart.
-  - Integrate with existing `showAddToCartOption` setting.
+- [x] **Add-Item Default Behavior Preference (העדפת הוספת מוצר)** ✅ Implemented (2026-03-21)
+  - When adding a new item from search (not-found flow), a segmented toggle appears: "לקטלוג" (catalog) or "לעגלה" (cart).
+  - Default destination: catalog (all products). User can switch to cart before pressing add.
+  - Button label and color update dynamically: purple for catalog, green for cart.
+  - Same destination is used in the CategorySheet pending-add flow.
+  - Toggle resets to catalog after each add to avoid accidental cart additions.
 
 - [x] **Search Bar Add-Item Options Icon (אפשרויות חיפוש)** ✅ Implemented
   - Added a bulk-import icon (list icon with teal border) on the left side of the search bar.
@@ -137,10 +140,12 @@
   - Same import logic as the Settings import — parses lines of "name" or "name,quantity".
   - Results shown in a popup overlay with success/error feedback.
 
-- [ ] **CI Email Notification Redesign (תיקון מייל CI)**
-  - Current release-notification email has poor formatting / doesn't look good.
-  - Redesign the HTML template in the GitHub Actions workflow (`cicd.yml`) for a cleaner layout.
-  - Improve Hebrew text styling, version/status sections, and Play Store link presentation.
+- [x] **CI Email Notification Redesign (תיקון מייל CI)** ✅ Implemented (2026-03-21)
+  - Redesigned the release notification email in `cicd.yml` with a professional table-based layout.
+  - New structure: gradient header banner with version badge, green status bar, bordered "What's New" section, prominent CTA button, GitHub Release link, and footer.
+  - Uses table-based layout for cross-client email compatibility (Gmail, Outlook, Apple Mail).
+  - Color scheme matches app theme: midnight background, purple accent, green success bars.
+  - Full RTL Hebrew support with proper `dir="rtl"` and `lang="he"`.
 
 - [ ] **Automated QA with Playwright (QA אוטומטי עם Playwright)**
   - Add a Playwright smoke suite for critical flows: auth, add item, mark purchased, and bulk import.

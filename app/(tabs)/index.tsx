@@ -112,6 +112,7 @@ export default function HomeScreen() {
   const [showAllProducts, setShowAllProducts] = useState(true);
   const [showCart, setShowCart] = useState(true);
   const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
+  const [addToCart, setAddToCart] = useState(false);
   const [cartSort, setCartSort] = useState<CartSortMode>("recent");
   const [cartSortAsc, setCartSortAsc] = useState(true);
   const [allProductsSort, setAllProductsSort] =
@@ -402,14 +403,15 @@ export default function HomeScreen() {
         productToAdd = newProduct;
       }
 
-      addItem(productToAdd.id, user.household_id, 1, productToAdd, false);
+      addItem(productToAdd.id, user.household_id, 1, productToAdd, addToCart);
       setSearchQuery("");
+      setAddToCart(false);
     } catch (err) {
       console.error("[HomeScreen] addFromSearch error:", err);
     } finally {
       setIsAddingFromSearch(false);
     }
-  }, [searchQuery, user?.household_id, items, addItem, isAddingFromSearch]);
+  }, [searchQuery, user?.household_id, items, addItem, isAddingFromSearch, addToCart]);
 
   // ── Bootstrap ──────────────────────────────────────────────
   useEffect(() => {
@@ -530,9 +532,10 @@ export default function HomeScreen() {
           return;
         }
 
-        addItem(newProduct.id, user.household_id, 1, newProduct, false);
+        addItem(newProduct.id, user.household_id, 1, newProduct, addToCart);
         setPendingAddName(null);
         setSearchQuery("");
+        setAddToCart(false);
         await fetchList(user.household_id);
         return;
       }
@@ -596,7 +599,7 @@ export default function HomeScreen() {
       await fetchList(user.household_id);
       setCategoryTarget(null);
     },
-    [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem],
+    [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem, addToCart],
   );
 
   const handleAcceptRecommendation = useCallback(
@@ -1171,9 +1174,57 @@ export default function HomeScreen() {
           <Text style={styles.emptySubtext}>
             &quot;{searchQuery.trim()}&quot; לא נמצא ברשימה
           </Text>
+          {/* Destination toggle: catalog vs cart */}
+          <View style={styles.destToggleRow}>
+            <TouchableOpacity
+              style={[
+                styles.destToggleBtn,
+                !addToCart && styles.destToggleBtnActive,
+              ]}
+              onPress={() => setAddToCart(false)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="albums-outline"
+                size={16}
+                color={!addToCart ? dark.text : dark.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.destToggleText,
+                  !addToCart && styles.destToggleTextActive,
+                ]}
+              >
+                לקטלוג
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.destToggleBtn,
+                addToCart && styles.destToggleBtnActive,
+              ]}
+              onPress={() => setAddToCart(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="cart-outline"
+                size={16}
+                color={addToCart ? dark.text : dark.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.destToggleText,
+                  addToCart && styles.destToggleTextActive,
+                ]}
+              >
+                לעגלה
+              </Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
             style={[
               styles.addFromSearchBtn,
+              addToCart && { backgroundColor: dark.success },
               (isAddingFromSearch || !!pendingAddName) && { opacity: 0.6 },
             ]}
             onPress={handleAddFromSearch}
@@ -1183,14 +1234,20 @@ export default function HomeScreen() {
             {isAddingFromSearch ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+              <Ionicons
+                name={addToCart ? "cart-outline" : "add-circle-outline"}
+                size={20}
+                color="#fff"
+              />
             )}
             <Text style={styles.addFromSearchText}>
               {isAddingFromSearch
                 ? "מוסיף..."
                 : pendingAddName
                   ? "בחרו קטגוריה..."
-                  : `הוסף "${searchQuery.trim()}" לרשימה`}
+                  : addToCart
+                    ? `הוסף "${searchQuery.trim()}" לעגלה`
+                    : `הוסף "${searchQuery.trim()}" לקטלוג`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1872,8 +1929,8 @@ const styles = StyleSheet.create({
   emptyContainer: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 100,
+    justifyContent: "flex-start",
+    paddingTop: 32,
   },
   emptyEmoji: {
     fontSize: 56,
@@ -1903,6 +1960,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#fff",
+  },
+
+  // ── Destination toggle (catalog / cart) ────────────────────
+  destToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+    marginTop: 18,
+    backgroundColor: dark.surfaceDark,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  destToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  destToggleBtnActive: {
+    backgroundColor: dark.surfaceHighlight,
+    borderRadius: 10,
+  },
+  destToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: dark.textSecondary,
+  },
+  destToggleTextActive: {
+    color: dark.text,
   },
 
   // ── FAB ────────────────────────────────────────────────────
