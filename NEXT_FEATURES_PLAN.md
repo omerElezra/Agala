@@ -100,10 +100,15 @@
   - Notify household members when items are added / checked off.
   - Notify when the nightly prediction adds items automatically.
 
-- [ ] **Deep Linking for Household Invites (הזמנה בקישור)**
-  - Replace manual code copy-paste with sharable link (`agala.app/join/<household_id>`).
-  - Configure Android App Links + Universal Links (iOS).
-  - Recipient taps link → app opens → auto-joins household.
+- [x] **Household Onboarding & Invites Overhaul (הזמנה למשק בית)** ✅ Implemented (v1.0.11)
+  - **Household name**: Add `name` column to `households` table. Creator sets name on signup, editable in Settings. Shown in invite message + join preview.
+  - **Short invite code**: New `household_invites` table (`code` 6-char, `household_id`, `expires_at`, `uses_remaining`). Replace raw UUID with human-friendly code like `AGALA-7X3K`.
+  - **Share via native sheet**: "הזמן למשק בית" button → `Share.share()` with pre-formatted Hebrew message + invite code. Natural for WhatsApp/SMS sharing.
+  - **No-restart join**: After successful join → `fetchList()` with new `household_id` → UI updates instantly. No more "restart app" message.
+  - **Member list in Settings**: Show household members (display names) from `users` where `household_id` matches.
+  - **Leave household**: "עזוב משק בית" → creates new solo household, keeps personal data.
+  - **QR code** (future): Generate QR from invite code for in-person sharing.
+  - **Deep link** (future): `agala.app/join/<code>` with Play Store fallback.
 
 - [x] **Public Privacy Policy URL (כתובת מדיניות פרטיות)** ✅ Implemented
   - Host `PRIVACY_POLICY.md` as a live web page (GitHub Pages / static site).
@@ -122,15 +127,62 @@
   - If up to date → shows success banner.
   - Fallback on error: opens Play Store directly so user can check manually.
 
-- [ ] **Add-Item Default Behavior Preference (העדפת הוספת מוצר)**
-  - Add preference in Settings to choose default behavior: add to product list or shopping cart.
-  - Integrate with existing `showAddToCartOption` setting.
+- [x] **Add-Item Default Behavior Preference (העדפת הוספת מוצר)** ✅ Implemented (2026-03-21)
+  - When adding a new item from search (not-found flow), a segmented toggle appears: "לקטלוג" (catalog) or "לעגלה" (cart).
+  - Default destination: catalog (all products). User can switch to cart before pressing add.
+  - Button label and color update dynamically: purple for catalog, green for cart.
+  - Same destination is used in the CategorySheet pending-add flow.
+  - Toggle resets to catalog after each add to avoid accidental cart additions.
 
 - [x] **Search Bar Add-Item Options Icon (אפשרויות חיפוש)** ✅ Implemented
   - Added a bulk-import icon (list icon with teal border) on the left side of the search bar.
   - Opens a bottom sheet modal with 3 import options: file picker, clipboard paste, manual text input.
   - Same import logic as the Settings import — parses lines of "name" or "name,quantity".
   - Results shown in a popup overlay with success/error feedback.
+
+- [x] **CI Email Notification Redesign (תיקון מייל CI)** ✅ Implemented (2026-03-21)
+  - Redesigned the release notification email in `cicd.yml` with a professional table-based layout.
+  - New structure: gradient header banner with version badge, green status bar, bordered "What's New" section, prominent CTA button, GitHub Release link, and footer.
+  - Uses table-based layout for cross-client email compatibility (Gmail, Outlook, Apple Mail).
+  - Color scheme matches app theme: midnight background, purple accent, green success bars.
+  - Full RTL Hebrew support with proper `dir="rtl"` and `lang="he"`.
+
+- [ ] **Automated QA with Playwright (QA אוטומטי עם Playwright)**
+  - Add a Playwright smoke suite for critical flows: auth, add item, mark purchased, and bulk import.
+  - Run tests automatically in GitHub Actions on every PR and on nightly schedule.
+  - Upload artifacts on failure (screenshots, videos, traces) to speed up debugging.
+  - Add a required status check so broken core flows cannot be merged.
+
+- [x] **What's New Popup in Hebrew (חלון "מה חדש" בעברית)** ✅ Implemented (2026-03-21)
+  - Use a **two-track release notes strategy**:
+    - **Client-facing (Hebrew, short)**: concise, quick updates/news for in-app popup (`WhatsNewModal`).
+    - **GitHub release (English, standard)**: full professional changelog as the default public release format.
+  - Switch `WhatsNewModal` data source to local Hebrew notes (same content family as `whatsnew/he-IL`), not GitHub Releases API.
+  - Keep English release notes in GitHub as canonical engineering/public release documentation.
+  - Improve popup styling: RTL alignment, section headers, spacing, readability.
+
+- [x] **Safe Area / Edge-to-Edge Fix (תיקון אזור בטוח למסך)** ✅ Implemented (v1.0.11)
+  - Installed `expo-system-ui` (root background `#0F0F1A`) + `expo-navigation-bar` (transparent, absolute position).
+  - `_layout.tsx`: set `NavigationBar.setBackgroundColorAsync("transparent")` + light button style on mount.
+  - Removed double bottom inset on tab screens (`edges={[]}` instead of `edges={["bottom"]}`); tab bar already handles `insets.bottom`.
+  - Import sheet "הוספה מרובה": dynamic `paddingBottom: Math.max(32, insets.bottom + 16)` for edge-to-edge.
+  - Validated bulk-add flow still works correctly.
+
+- [x] **🔴 CRITICAL: Search Bar Add-Item Crash (קריסה בהוספת מוצר מחיפוש)** ✅ Fixed (v1.0.11)
+  - **Root cause**: Recommendations row in `listData` prevented `ListEmptyComponent` from rendering, hiding the add button. Fabric crash on view recycling when toggling between not-found and list states.
+  - **Fix**: Conditional render — not-found UI renders outside FlatList; recommendations hidden during search.
+
+- [x] **🔴 BUG: Shared Household Join Fails (משק בית משותף — לא מוצא את הקוד)** ✅ Fixed (v1.0.11)
+  - **Root cause**: RLS on `households` blocks SELECT for non-members. Old UUID copy-paste flow attempted direct `users` update which relied on FK constraint.
+  - **Fix**: New `join_household_by_code()` RPC (SECURITY DEFINER) validates invite code, checks `ALREADY_MEMBER`, updates `users.household_id`, decrements invite uses atomically.
+
+- [x] **Voice Input: Auto-Stop Recording (מיקרופון — סיום הקלטה אוטומטי)** ✅ Implemented (2026-03-21)
+  - Currently the user must tap the microphone button again to stop recording.
+  - Apply auto-stop behavior to both flows:
+    - Search/add single item voice input.
+    - Multi-add items voice input flow.
+  - Detect silence / end-of-speech and finish recording automatically in all voice entry points.
+  - Shared speech hook now supports silence/final-result auto-stop; Home screen supports target-based voice input for both search and multi-add manual input.
 
 ## Notes
 

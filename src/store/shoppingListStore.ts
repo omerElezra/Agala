@@ -49,7 +49,7 @@ interface ShoppingListState {
   _skippedRecIds: Set<string>;
   /** Per-product prediction urgency — used for R/Y/G dots on all-products */
   predictionStatusMap: Map<string, PredictionStatus>;
-  /** Per-product depletion percentage (0-100) — how close to running out */
+  /** Per-product stock percentage (0-100): 0=empty at home, 100=full */
   depletionPercentMap: Map<string, number>;
   isLoading: boolean;
   householdId: string | null;
@@ -155,7 +155,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       activeItems.filter((i) => i.status === "purchased").length,
     );
 
-    // 4. Fetch recommendations + prediction status + depletion map
+    // 4. Fetch recommendations + prediction status + stock percentage map
     get().fetchRecommendations(householdId);
   },
 
@@ -196,7 +196,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
 
     // Build prediction status for ALL products
     const statusMap = new Map<string, PredictionStatus>();
-    const depletionMap = new Map<string, number>();
+    const stockMap = new Map<string, number>();
     const recCandidates: RecommendationItem[] = [];
 
     for (const rule of data as RuleWithProduct[]) {
@@ -233,7 +233,10 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
               Math.max(0, Math.round((daysElapsed / totalCycleDays) * 100)),
             )
           : 0;
-      depletionMap.set(rule.product_id, depletion);
+
+      // Stock % (requested UX): 0 = finished at home, 100 = full at home
+      const stockPercent = 100 - depletion;
+      stockMap.set(rule.product_id, stockPercent);
 
       // Recommendation candidates: due within 3 days AND in "All Items" (purchased)
       if (daysLeft <= 3 && purchasedProductIds.has(rule.product_id)) {
@@ -275,7 +278,7 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
       recommendations: recs,
       _allRecCandidates: sortedCandidates,
       predictionStatusMap: statusMap,
-      depletionPercentMap: depletionMap,
+      depletionPercentMap: stockMap,
     });
   },
 
@@ -468,11 +471,14 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
         } else {
           const { error: ruleError } = await supabase
             .from("household_inventory_rules")
-            .insert({
-              household_id: item.household_id,
-              product_id: item.product_id,
-              last_purchased_at: now,
-            });
+            .upsert(
+              {
+                household_id: item.household_id,
+                product_id: item.product_id,
+                last_purchased_at: now,
+              },
+              { onConflict: "household_id,product_id" },
+            );
           if (ruleError) {
             console.error(
               "[store] inventory rule insert failed:",
@@ -676,11 +682,14 @@ export const useShoppingListStore = create<ShoppingListState>((set, get) => ({
               .maybeSingle();
 
             if (!existingRule) {
-              await supabase.from("household_inventory_rules").insert({
-                household_id: householdId,
-                product_id: productId,
-                last_purchased_at: now,
-              });
+              await supabase.from("household_inventory_rules").upsert(
+                {
+                  household_id: householdId,
+                  product_id: productId,
+                  last_purchased_at: now,
+                },
+                { onConflict: "household_id,product_id" },
+              );
             }
           }
         }

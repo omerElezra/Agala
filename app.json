@@ -28,11 +28,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.omerelezra.agala",
-      "permissions": [
-        "INTERNET",
-        "VIBRATE",
-        "RECORD_AUDIO"
-      ]
+      "permissions": ["INTERNET", "VIBRATE", "RECORD_AUDIO"]
     },
     "web": {
       "bundler": "metro",
@@ -45,7 +41,20 @@
     "plugins": [
       "expo-router",
       "@react-native-community/datetimepicker",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      [
+        "expo-system-ui",
+        {
+          "backgroundColor": "#0F0F1A"
+        }
+      ],
+      [
+        "expo-navigation-bar",
+        {
+          "position": "absolute",
+          "backgroundColor": "#00000000"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

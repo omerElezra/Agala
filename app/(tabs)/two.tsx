@@ -248,7 +248,7 @@ export default function HistoryScreen() {
 
   // ── Main UI ────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* ── Sticky header ─────────────────────────────────── */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>היסטוריית רכישות</Text>

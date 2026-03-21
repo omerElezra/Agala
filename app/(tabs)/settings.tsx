@@ -8,10 +8,12 @@ import * as StoreReview from "expo-store-review";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -20,6 +22,16 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+/** Generate a random 6-char alphanumeric invite code */
+function generateInviteCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I confusion
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
 
 export default function SettingsScreen() {
   const { user, signOut, isLoading, refreshProfile } = useAuth();
@@ -41,8 +53,19 @@ export default function SettingsScreen() {
   } | null>(null);
 
   // ── Join household ─────────────────────────────────────────
-  const [joinId, setJoinId] = useState("");
+  const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
+
+  // ── Household invite & members ─────────────────────────────
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [creatingInvite, setCreatingInvite] = useState(false);
+  const [householdName, setHouseholdName] = useState("");
+  const [editingHouseholdName, setEditingHouseholdName] = useState(false);
+  const [savingHouseholdName, setSavingHouseholdName] = useState(false);
+  const [members, setMembers] = useState<
+    { id: string; display_name: string | null; email: string }[]
+  >([]);
+  const [leaving, setLeaving] = useState(false);
 
   // ── Check for update ───────────────────────────────────
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -50,6 +73,40 @@ export default function SettingsScreen() {
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  // ── Load household data (name, members, existing invite) ──
+  useEffect(() => {
+    if (!user?.household_id) return;
+    // Fetch household name
+    supabase
+      .from("households")
+      .select("name")
+      .eq("id", user.household_id)
+      .single()
+      .then(({ data }) => {
+        setHouseholdName(data?.name ?? "");
+      });
+    // Fetch members
+    supabase
+      .from("users")
+      .select("id, display_name, email")
+      .eq("household_id", user.household_id)
+      .then(({ data }) => {
+        if (data) setMembers(data);
+      });
+    // Fetch existing active invite
+    supabase
+      .from("household_invites")
+      .select("code")
+      .eq("household_id", user.household_id)
+      .gt("expires_at", new Date().toISOString())
+      .gt("uses_remaining", 0)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0 && data[0]) setInviteCode(data[0].code);
+      });
+  }, [user?.household_id]);
 
   const showBanner = (text: string, type: "success" | "error") => {
     setBanner({ text, type });
@@ -76,49 +133,150 @@ export default function SettingsScreen() {
     setSaving(false);
   }, [user, newName, refreshProfile]);
 
-  // ── Copy household ID ──────────────────────────────────────
-  const handleCopyHousehold = useCallback(async () => {
+  // ── Save household name ──────────────────────────────────
+  const handleSaveHouseholdName = useCallback(async () => {
+    if (!user?.household_id || !householdName.trim()) return;
+    setSavingHouseholdName(true);
+    const { error } = await supabase
+      .from("households")
+      .update({ name: householdName.trim() })
+      .eq("id", user.household_id);
+    if (error) {
+      showBanner("שגיאה בעדכון שם משק הבית", "error");
+    } else {
+      showBanner("שם משק הבית עודכן", "success");
+      setEditingHouseholdName(false);
+    }
+    setSavingHouseholdName(false);
+  }, [user?.household_id, householdName]);
+
+  // ── Create invite code ─────────────────────────────────────
+  const handleCreateInvite = useCallback(async () => {
     if (!user?.household_id) return;
+    setCreatingInvite(true);
+    const code = generateInviteCode();
+    const { error } = await supabase.from("household_invites").insert({
+      household_id: user.household_id,
+      code,
+      created_by: user.id,
+    });
+    if (error) {
+      showBanner("שגיאה ביצירת קוד הזמנה", "error");
+    } else {
+      setInviteCode(code);
+    }
+    setCreatingInvite(false);
+  }, [user?.household_id, user?.id]);
+
+  // ── Share invite ───────────────────────────────────────────
+  const handleShareInvite = useCallback(async () => {
+    const code = inviteCode;
+    if (!code) return;
+    const hhName = householdName.trim() || "המשפחה";
+    const message =
+      `🛒 הצטרפו לרשימת הקניות של ${hhName} באפליקציית עגלה!\n\n` +
+      `קוד הזמנה: ${code}\n\n` +
+      `הורידו את האפליקציה והכניסו את הקוד בהגדרות → הצטרפות למשק בית`;
     try {
-      await Clipboard.setStringAsync(user.household_id);
-      showBanner("הקוד הועתק ללוח", "success");
+      await Share.share({ message });
+    } catch {
+      // User cancelled share
+    }
+  }, [inviteCode, householdName]);
+
+  // ── Copy invite code ───────────────────────────────────────
+  const handleCopyInvite = useCallback(async () => {
+    if (!inviteCode) return;
+    try {
+      await Clipboard.setStringAsync(inviteCode);
+      showBanner("קוד ההזמנה הועתק ללוח", "success");
     } catch {
       showBanner("שגיאה בהעתקה", "error");
     }
-  }, [user?.household_id]);
+  }, [inviteCode]);
 
-  // ── Join another household ─────────────────────────────────
+  // ── Join another household via invite code ─────────────────
   const handleJoinHousehold = useCallback(async () => {
-    if (!user || !joinId.trim()) return;
+    if (!user || !joinCode.trim()) return;
     setJoining(true);
 
-    // Verify the household exists
-    const { data: hh, error: hhErr } = await supabase
-      .from("households")
-      .select("id")
-      .eq("id", joinId.trim())
-      .single();
+    const code = joinCode.trim().toUpperCase();
 
-    if (hhErr || !hh) {
-      showBanner("משק בית לא נמצא — בדקו את הקוד", "error");
+    // Validate format: 6 alphanumeric characters
+    if (!/^[A-Z0-9]{4,8}$/i.test(code)) {
+      showBanner("קוד הזמנה לא תקין — בדקו את הקוד", "error");
       setJoining(false);
       return;
     }
 
-    // Update user to new household
-    const { error: updateErr } = await supabase
-      .from("users")
-      .update({ household_id: joinId.trim() })
-      .eq("id", user.id);
+    // Call RPC to join via invite code
+    const { data: raw, error } = await supabase.rpc("join_household_by_code", {
+      invite_code: code,
+    });
+    const result = raw as unknown as
+      | { success: true; household_name: string | null }
+      | { success: false; error: string }
+      | null;
 
-    if (updateErr) {
-      showBanner("שגיאה בהצטרפות למשק הבית", "error");
+    if (error || !result?.success) {
+      const errMsg =
+        result && !result.success && result.error === "INVITE_NOT_FOUND"
+          ? "קוד הזמנה לא נמצא או פג תוקף"
+          : result && !result.success && result.error === "ALREADY_MEMBER"
+            ? "אתם כבר חברים במשק בית זה"
+            : "שגיאה בהצטרפות למשק הבית";
+      showBanner(errMsg, "error");
     } else {
-      showBanner("הצטרפת למשק הבית בהצלחה! הפעילו מחדש", "success");
-      setJoinId("");
+      const hhName = result.household_name ? ` "${result.household_name}"` : "";
+      showBanner(`הצטרפת למשק הבית${hhName} בהצלחה! 🏠`, "success");
+      setJoinCode("");
+      // Clear stale state before refresh loads new household data
+      setInviteCode(null);
+      setMembers([]);
+      setHouseholdName("");
+      // Refresh profile + reload data without app restart
+      await refreshProfile();
     }
     setJoining(false);
-  }, [user, joinId]);
+  }, [user, joinCode, refreshProfile]);
+
+  // ── Leave household ────────────────────────────────────
+  const handleLeaveHousehold = useCallback(() => {
+    if (!user) return;
+
+    // Can't leave if you're the only member — already solo
+    if (members.length <= 1) {
+      showBanner("אתם כבר לבד במשק הבית — אין צורך לעזוב", "error");
+      return;
+    }
+
+    Alert.alert(
+      "עזיבת משק הבית",
+      `עזיבה תיצור עבורכם משק בית חדש וריק.\nשאר ${members.length - 1} החברים ישארו ברשימה הנוכחית.`,
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "עזוב",
+          style: "destructive",
+          onPress: async () => {
+            setLeaving(true);
+            const { data: raw, error } = await supabase.rpc("leave_household");
+            const result = raw as unknown as { success: boolean } | null;
+            if (error || !result?.success) {
+              showBanner("שגיאה ביציאה ממשק הבית", "error");
+            } else {
+              setInviteCode(null);
+              setHouseholdName("");
+              setMembers([]);
+              await refreshProfile();
+              showBanner("עברתם למשק בית חדש 🏠", "success");
+            }
+            setLeaving(false);
+          },
+        },
+      ],
+    );
+  }, [user, members, refreshProfile]);
 
   // ── Check for app update ───────────────────────────────
   const handleCheckUpdate = useCallback(async () => {
@@ -175,7 +333,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* ── Profile Section ─────────────────────────────────── */}
         <View style={styles.section}>
@@ -235,20 +393,93 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>משק בית</Text>
 
-          {/* Current household ID */}
+          {/* Household name */}
           <View style={styles.row}>
-            <Text style={styles.label}>קוד משק בית</Text>
-            <TouchableOpacity onPress={handleCopyHousehold}>
-              <Text style={styles.householdId}>
-                {user.household_id?.slice(0, 8)}…{" "}
-                <Text style={styles.copyIcon}>📋</Text>
-              </Text>
-            </TouchableOpacity>
+            <Text style={styles.label}>שם משק הבית</Text>
+            {editingHouseholdName ? (
+              <View style={styles.editRow}>
+                <TextInput
+                  style={styles.nameInput}
+                  value={householdName}
+                  onChangeText={setHouseholdName}
+                  placeholder="הבית של כהן"
+                  placeholderTextColor={dark.placeholder}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={handleSaveHouseholdName}
+                  disabled={savingHouseholdName}
+                >
+                  <Text style={styles.saveBtnText}>
+                    {savingHouseholdName ? "..." : "שמור"}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setEditingHouseholdName(false)}
+                >
+                  <Text style={styles.cancelBtnText}>ביטול</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => setEditingHouseholdName(true)}>
+                <Text style={styles.value}>
+                  {householdName || "—"} <Text style={styles.editIcon}>✏️</Text>
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          <Text style={styles.hint}>
-            שתפו את הקוד עם בני המשפחה כדי שיצטרפו לאותה רשימה
-          </Text>
+          {/* Invite code */}
+          <View style={styles.inviteSection}>
+            <Text style={styles.label}>קוד הזמנה</Text>
+            {inviteCode ? (
+              <View style={styles.inviteRow}>
+                <TouchableOpacity onPress={handleCopyInvite}>
+                  <Text style={styles.inviteCodeText}>
+                    {inviteCode} <Text style={styles.copyIcon}>📋</Text>
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.shareBtn}
+                  onPress={handleShareInvite}
+                >
+                  <Text style={styles.shareBtnText}>שתף הזמנה 📤</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.createInviteBtn}
+                onPress={handleCreateInvite}
+                disabled={creatingInvite}
+              >
+                <Text style={styles.createInviteBtnText}>
+                  {creatingInvite ? "..." : "צור קוד הזמנה ✉️"}
+                </Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.hint}>
+              שתפו את קוד ההזמנה עם בני המשפחה כדי שיצטרפו לאותה רשימה
+            </Text>
+          </View>
+
+          {/* Members */}
+          {members.length > 0 && (
+            <View style={styles.membersSection}>
+              <Text style={styles.label}>חברי משק הבית ({members.length})</Text>
+              {members.map((m) => (
+                <View key={m.id} style={styles.memberRow}>
+                  <Text style={styles.memberName}>
+                    {m.display_name || m.email || "—"}
+                  </Text>
+                  {m.id === user.id && (
+                    <Text style={styles.memberYou}>(את/ה)</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
 
           {/* Join another household */}
           <View style={styles.joinSection}>
@@ -256,20 +487,21 @@ export default function SettingsScreen() {
             <View style={styles.joinRow}>
               <TextInput
                 style={styles.joinInput}
-                value={joinId}
-                onChangeText={setJoinId}
-                placeholder="הדביקו קוד משק בית"
+                value={joinCode}
+                onChangeText={setJoinCode}
+                placeholder="הכניסו קוד הזמנה"
                 placeholderTextColor={dark.placeholder}
-                autoCapitalize="none"
+                autoCapitalize="characters"
                 autoCorrect={false}
+                maxLength={8}
               />
               <TouchableOpacity
                 style={[
                   styles.joinBtn,
-                  !joinId.trim() && styles.joinBtnDisabled,
+                  !joinCode.trim() && styles.joinBtnDisabled,
                 ]}
                 onPress={handleJoinHousehold}
-                disabled={joining || !joinId.trim()}
+                disabled={joining || !joinCode.trim()}
               >
                 <Text style={styles.joinBtnText}>
                   {joining ? "..." : "הצטרף"}
@@ -277,6 +509,18 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Leave household */}
+          <TouchableOpacity
+            style={styles.leaveBtn}
+            onPress={handleLeaveHousehold}
+            disabled={leaving}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.leaveBtnText}>
+              {leaving ? "..." : "🚪 עזוב משק הבית"}
+            </Text>
+          </TouchableOpacity>
         </View>
         {/* ── Preferences Section ───────────────────────────────── */}
         <View style={styles.section}>
@@ -316,7 +560,8 @@ export default function SettingsScreen() {
             <View style={styles.settingInfo}>
               <Text style={styles.settingLabel}>ממלא את העגלה</Text>
               <Text style={styles.settingHint}>
-                מוסיף אוטומטית מוצרים לעגלה כשהם עומדים להיגמר — בלי שתצטרכו לזכור
+                מוסיף אוטומטית מוצרים לעגלה כשהם עומדים להיגמר — בלי שתצטרכו
+                לזכור
               </Text>
             </View>
             <Switch
@@ -550,10 +795,84 @@ const styles = StyleSheet.create({
     color: dark.textMuted,
     fontSize: 14,
   },
-  householdId: {
-    fontSize: 16,
-    color: dark.secondary,
+  inviteSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: dark.border,
+  },
+  inviteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+  inviteCodeText: {
+    fontSize: 22,
+    color: dark.accent,
+    fontWeight: "800",
+    letterSpacing: 3,
+  },
+  shareBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: dark.success,
+    borderRadius: 12,
+  },
+  shareBtnText: {
+    color: "#fff",
     fontWeight: "700",
+    fontSize: 14,
+  },
+  createInviteBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: dark.accent,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+    marginTop: 6,
+  },
+  createInviteBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  leaveBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: dark.error,
+    alignSelf: "flex-start",
+  },
+  leaveBtnText: {
+    color: dark.error,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  membersSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: dark.border,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+  },
+  memberName: {
+    fontSize: 15,
+    color: dark.text,
+    fontWeight: "500",
+  },
+  memberYou: {
+    fontSize: 13,
+    color: dark.textSecondary,
+    fontWeight: "400",
   },
   copyIcon: {
     fontSize: 14,

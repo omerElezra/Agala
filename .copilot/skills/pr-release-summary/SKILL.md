@@ -1,8 +1,14 @@
 ---
 name: pr-release-summary
-description: 'Generate technical and user-facing Hebrew summaries for Pull Requests before merging to main, and update all project documentation. Use when asked to "summarize PR", "prepare release notes", "summarize before push", "what changed", "create PR summary", "write release notes", "update docs", "עדכן תיעוד", or when the user is about to merge or push to main. Produces structured output for GitHub PR, Google Play, and in-app What''s New popup, and updates all relevant MD files.'
+description: >
+  Generate technical and Hebrew user-facing release summaries, and update all
+  project documentation. Use when asked to "summarize PR", "prepare release notes",
+  "summarize what changed", "create PR summary", "write release notes",
+  "update docs", "עדכן תיעוד", "כתוב סיכום", "תכין סיכום לשחרור", "מה השתנה".
+  Also used as Phase 3 of the push-changes skill. Do NOT use for "push changes" —
+  use the push-changes skill instead.
 metadata:
-  version: 1.1.0
+  version: 1.2.0
   author: Omer Elezra
   language: he
 compatibility: Requires access to the Agala workspace. Works with GitHub Copilot in VS Code.

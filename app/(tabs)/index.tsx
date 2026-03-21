@@ -34,7 +34,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 type CartSortMode = "name" | "category" | "recent";
 type AllProductsSortMode = "name" | "category" | "recent" | "depletion";
@@ -52,14 +55,14 @@ const ALL_SORT_OPTIONS: { key: AllProductsSortMode; label: string }[] = [
   { key: "depletion", label: "עומד להיגמר" },
 ];
 
-/** Hebrew depletion title + color — how close to running out */
-function getDepletionLabel(pct: number): { title: string; color: string } {
-  if (pct >= 100) return { title: "לך תקנה", color: "rgba(239, 68, 68, 0.7)" }; // Red
-  if (pct >= 80) return { title: "תכף נגמר", color: "rgba(249, 115, 22, 0.7)" }; // Orange
-  if (pct >= 60)
+/** Hebrew stock title + color — 0%=empty, 100%=full */
+function getStockLabel(pct: number): { title: string; color: string } {
+  if (pct <= 0) return { title: "לך תקנה", color: "rgba(239, 68, 68, 0.7)" }; // Red
+  if (pct <= 20) return { title: "תכף נגמר", color: "rgba(249, 115, 22, 0.7)" }; // Orange
+  if (pct <= 40)
     return { title: "חצי קלאץ'", color: "rgba(251, 191, 36, 0.7)" }; // Yellow
-  if (pct >= 30) return { title: "יש, אל תדאג", color: dark.textSecondary };
-  if (pct >= 1) return { title: "יש בשפע", color: dark.textSecondary };
+  if (pct <= 70) return { title: "יש, אל תדאג", color: dark.textSecondary };
+  if (pct < 100) return { title: "יש בשפע", color: dark.textSecondary };
   return { title: "הרגע קנינו", color: dark.textMuted };
 }
 
@@ -76,6 +79,7 @@ type ListRow =
 export default function HomeScreen() {
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const {
     items,
@@ -108,6 +112,7 @@ export default function HomeScreen() {
   const [showAllProducts, setShowAllProducts] = useState(true);
   const [showCart, setShowCart] = useState(true);
   const [isAddingFromSearch, setIsAddingFromSearch] = useState(false);
+  const [addToCart, setAddToCart] = useState(false);
   const [cartSort, setCartSort] = useState<CartSortMode>("recent");
   const [cartSortAsc, setCartSortAsc] = useState(true);
   const [allProductsSort, setAllProductsSort] =
@@ -123,6 +128,9 @@ export default function HomeScreen() {
     text: string;
     type: "success" | "error";
   } | null>(null);
+  const [voiceTarget, setVoiceTarget] = useState<"search" | "manual" | null>(
+    null,
+  );
 
   // ── Voice input ────────────────────────────────────────────
   const {
@@ -130,7 +138,47 @@ export default function HomeScreen() {
     isListening,
     startListening,
     stopListening,
-  } = useSpeechRecognition((text) => setSearchQuery(text));
+  } = useSpeechRecognition(
+    (text) => {
+      if (voiceTarget === "manual") {
+        setManualText((prev) => (prev.trim() ? `${prev}\n${text}` : text));
+        return;
+      }
+      setSearchQuery(text);
+    },
+    {
+      autoStop: true,
+      silenceMs: 1400,
+      finalStopMs: 300,
+    },
+  );
+
+  const isSearchVoiceActive = isListening && voiceTarget === "search";
+  const isManualVoiceActive = isListening && voiceTarget === "manual";
+
+  const toggleVoiceInput = useCallback(
+    async (target: "search" | "manual") => {
+      if (isListening && voiceTarget === target) {
+        stopListening();
+        setVoiceTarget(null);
+        return;
+      }
+
+      if (isListening && voiceTarget !== target) {
+        stopListening();
+      }
+
+      setVoiceTarget(target);
+      await startListening();
+    },
+    [isListening, voiceTarget, startListening, stopListening],
+  );
+
+  useEffect(() => {
+    if (!isListening && voiceTarget) {
+      setVoiceTarget(null);
+    }
+  }, [isListening, voiceTarget]);
 
   // ── Bulk import helpers ─────────────────────────────────────
   const showImportBanner = (text: string, type: "success" | "error") => {
@@ -263,6 +311,16 @@ export default function HomeScreen() {
     setShowManualInput(false);
   }, [manualText, handleBulkImport]);
 
+  const closeImportSheet = useCallback(() => {
+    if (isManualVoiceActive) {
+      stopListening();
+      setVoiceTarget(null);
+    }
+    setShowImportSheet(false);
+    setShowManualInput(false);
+    setManualText("");
+  }, [isManualVoiceActive, stopListening]);
+
   // ── Add item directly from search (no-match case) ──────────
   const handleAddFromSearch = useCallback(async () => {
     const trimmed = searchQuery.trim();
@@ -322,7 +380,6 @@ export default function HomeScreen() {
         // If still no category, ask the user to pick one via CategorySheet
         if (!category) {
           setPendingAddName(trimmed);
-          setSearchQuery("");
           setIsAddingFromSearch(false);
           return;
         }
@@ -346,14 +403,15 @@ export default function HomeScreen() {
         productToAdd = newProduct;
       }
 
-      addItem(productToAdd.id, user.household_id, 1, productToAdd, false);
+      addItem(productToAdd.id, user.household_id, 1, productToAdd, addToCart);
       setSearchQuery("");
+      setAddToCart(false);
     } catch (err) {
       console.error("[HomeScreen] addFromSearch error:", err);
     } finally {
       setIsAddingFromSearch(false);
     }
-  }, [searchQuery, user?.household_id, items, addItem, isAddingFromSearch]);
+  }, [searchQuery, user?.household_id, items, addItem, isAddingFromSearch, addToCart]);
 
   // ── Bootstrap ──────────────────────────────────────────────
   useEffect(() => {
@@ -456,7 +514,6 @@ export default function HomeScreen() {
       // ── Flow A: user is picking a category for a brand-new product ──
       if (pendingAddName) {
         const name = pendingAddName;
-        setPendingAddName(null);
 
         const { data: newProduct, error } = await supabase
           .from("products")
@@ -471,10 +528,15 @@ export default function HomeScreen() {
 
         if (error || !newProduct) {
           console.error("[index] create product error:", error?.message);
+          setPendingAddName(null);
           return;
         }
 
-        addItem(newProduct.id, user.household_id, 1, newProduct, false);
+        addItem(newProduct.id, user.household_id, 1, newProduct, addToCart);
+        setPendingAddName(null);
+        setSearchQuery("");
+        setAddToCart(false);
+        await fetchList(user.household_id);
         return;
       }
 
@@ -537,7 +599,7 @@ export default function HomeScreen() {
       await fetchList(user.household_id);
       setCategoryTarget(null);
     },
-    [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem],
+    [categoryTarget, pendingAddName, user?.household_id, fetchList, addItem, addToCart],
   );
 
   const handleAcceptRecommendation = useCallback(
@@ -567,8 +629,10 @@ export default function HomeScreen() {
   const listData = useMemo<ListRow[]>(() => {
     const data: ListRow[] = [];
 
-    // Recommendations row (before sections)
-    if (showRecommendations && recommendations.length > 0) {
+    const isSearching = searchQuery.trim().length > 0;
+
+    // Recommendations row (before sections) — hide during search
+    if (!isSearching && showRecommendations && recommendations.length > 0) {
       data.push({ type: "recommendations", key: "recs" });
     }
 
@@ -693,9 +757,10 @@ export default function HomeScreen() {
               );
             }
             if (allProductsSort === "depletion") {
-              const da = depletionPercentMap.get(a.product_id) ?? -1;
-              const db = depletionPercentMap.get(b.product_id) ?? -1;
-              return (db - da) * ad;
+              const stockA = depletionPercentMap.get(a.product_id) ?? 101;
+              const stockB = depletionPercentMap.get(b.product_id) ?? 101;
+              // Default sort focuses low stock first ("עומד להיגמר").
+              return (stockA - stockB) * ad;
             }
             return (
               (a.product?.name ?? "").localeCompare(
@@ -728,6 +793,7 @@ export default function HomeScreen() {
     depletionPercentMap,
     showRecommendations,
     recommendations,
+    searchQuery,
   ]);
 
   // ── Sticky header indices for pinned section titles ──────
@@ -921,11 +987,10 @@ export default function HomeScreen() {
       // Product item in "All Products" section
       if ("type" in row && row.type === "all-product-item") {
         const isInCart = activeProductIds.has(row.item.product_id);
-        const depletion = showDepletion
+        const stockPct = showDepletion
           ? depletionPercentMap.get(row.item.product_id)
           : undefined;
-        const deplLabel =
-          depletion != null ? getDepletionLabel(depletion) : null;
+        const stockLabel = stockPct != null ? getStockLabel(stockPct) : null;
         return (
           <View style={styles.allProductCard}>
             {isInCart ? (
@@ -963,15 +1028,17 @@ export default function HomeScreen() {
                 {row.item.product?.category ?? ""}
               </Text>
             </TouchableOpacity>
-            {deplLabel && (
+            {stockLabel && (
               <View style={styles.depletionEnd}>
-                <Text style={[styles.depletionPct, { color: deplLabel.color }]}>
-                  {depletion}%
+                <Text
+                  style={[styles.depletionPct, { color: stockLabel.color }]}
+                >
+                  {stockPct}%
                 </Text>
                 <Text
-                  style={[styles.depletionTitle, { color: deplLabel.color }]}
+                  style={[styles.depletionTitle, { color: stockLabel.color }]}
                 >
-                  {deplLabel.title}
+                  {stockLabel.title}
                 </Text>
               </View>
             )}
@@ -1036,7 +1103,7 @@ export default function HomeScreen() {
 
   // ── Main UI (matches main.html design) ─────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* ── Sticky header area ── */}
       <View style={styles.headerArea}>
         {/* Title row */}
@@ -1069,14 +1136,19 @@ export default function HomeScreen() {
             )}
             {voiceAvailable && (
               <TouchableOpacity
-                style={[styles.micBtn, isListening && styles.micBtnActive]}
-                onPress={isListening ? stopListening : startListening}
+                style={[
+                  styles.micBtn,
+                  isSearchVoiceActive && styles.micBtnActive,
+                ]}
+                onPress={() => {
+                  void toggleVoiceInput("search");
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name={isListening ? "mic" : "mic-outline"}
+                  name={isSearchVoiceActive ? "mic" : "mic-outline"}
                   size={20}
-                  color={isListening ? "#fff" : dark.accent}
+                  color={isSearchVoiceActive ? "#fff" : dark.accent}
                 />
               </TouchableOpacity>
             )}
@@ -1092,54 +1164,109 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Main scrollable content */}
-      <FlatList
-        data={listData}
-        keyExtractor={(row) => {
-          if ("type" in row) return row.key;
-          return row.id;
-        }}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        extraData={depletionPercentMap}
-        stickyHeaderIndices={stickyIndices}
-        renderItem={renderRow}
-        ListEmptyComponent={
-          searchQuery.trim().length > 0 ? (
-            <View style={styles.emptyContainer}>
+      {/* \"Not found\" overlay — rendered outside FlatList to avoid Fabric view recycling crash */}
+      {searchQuery.trim().length > 0 &&
+      filteredActive.length === 0 &&
+      filteredPurchased.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="search-outline" size={48} color={dark.textMuted} />
+          <Text style={styles.emptyText}>לא נמצאו תוצאות</Text>
+          <Text style={styles.emptySubtext}>
+            &quot;{searchQuery.trim()}&quot; לא נמצא ברשימה
+          </Text>
+          {/* Destination toggle: catalog vs cart */}
+          <View style={styles.destToggleRow}>
+            <TouchableOpacity
+              style={[
+                styles.destToggleBtn,
+                !addToCart && styles.destToggleBtnActive,
+              ]}
+              onPress={() => setAddToCart(false)}
+              activeOpacity={0.7}
+            >
               <Ionicons
-                name="search-outline"
-                size={48}
-                color={dark.textMuted}
+                name="albums-outline"
+                size={16}
+                color={!addToCart ? dark.text : dark.textSecondary}
               />
-              <Text style={styles.emptyText}>לא נמצאו תוצאות</Text>
-              <Text style={styles.emptySubtext}>
-                &quot;{searchQuery.trim()}&quot; לא נמצא ברשימה
-              </Text>
-              <TouchableOpacity
+              <Text
                 style={[
-                  styles.addFromSearchBtn,
-                  isAddingFromSearch && { opacity: 0.6 },
+                  styles.destToggleText,
+                  !addToCart && styles.destToggleTextActive,
                 ]}
-                onPress={handleAddFromSearch}
-                activeOpacity={0.7}
-                disabled={isAddingFromSearch}
               >
-                {isAddingFromSearch ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                )}
-                <Text style={styles.addFromSearchText}>
-                  {isAddingFromSearch
-                    ? "מוסיף..."
-                    : `הוסף "${searchQuery.trim()}" לרשימה`}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
+                לקטלוג
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.destToggleBtn,
+                addToCart && styles.destToggleBtnActive,
+              ]}
+              onPress={() => setAddToCart(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="cart-outline"
+                size={16}
+                color={addToCart ? dark.text : dark.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.destToggleText,
+                  addToCart && styles.destToggleTextActive,
+                ]}
+              >
+                לעגלה
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.addFromSearchBtn,
+              addToCart && { backgroundColor: dark.success },
+              (isAddingFromSearch || !!pendingAddName) && { opacity: 0.6 },
+            ]}
+            onPress={handleAddFromSearch}
+            activeOpacity={0.7}
+            disabled={isAddingFromSearch || !!pendingAddName}
+          >
+            {isAddingFromSearch ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons
+                name={addToCart ? "cart-outline" : "add-circle-outline"}
+                size={20}
+                color="#fff"
+              />
+            )}
+            <Text style={styles.addFromSearchText}>
+              {isAddingFromSearch
+                ? "מוסיף..."
+                : pendingAddName
+                  ? "בחרו קטגוריה..."
+                  : addToCart
+                    ? `הוסף "${searchQuery.trim()}" לעגלה`
+                    : `הוסף "${searchQuery.trim()}" לקטלוג`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        /* Main scrollable content */
+        <FlatList
+          data={listData}
+          keyExtractor={(row) => {
+            if ("type" in row) return row.key;
+            return row.id;
+          }}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          extraData={depletionPercentMap}
+          stickyHeaderIndices={stickyIndices}
+          renderItem={renderRow}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🛒</Text>
               <Text style={styles.emptyText}>הרשימה ריקה!</Text>
@@ -1147,9 +1274,9 @@ export default function HomeScreen() {
                 חפשו מוצר בשורת החיפוש למעלה
               </Text>
             </View>
-          )
-        }
-      />
+          }
+        />
+      )}
 
       {/* Snooze bottom sheet */}
       <SnoozeSheet
@@ -1179,22 +1306,20 @@ export default function HomeScreen() {
         transparent
         animationType="slide"
         statusBarTranslucent
-        onRequestClose={() => {
-          setShowImportSheet(false);
-          setShowManualInput(false);
-          setManualText("");
-        }}
+        onRequestClose={closeImportSheet}
       >
         <TouchableOpacity
           style={styles.importOverlay}
           activeOpacity={1}
-          onPress={() => {
-            setShowImportSheet(false);
-            setShowManualInput(false);
-            setManualText("");
-          }}
+          onPress={closeImportSheet}
         >
-          <TouchableOpacity activeOpacity={1} style={styles.importSheet}>
+          <TouchableOpacity
+            activeOpacity={1}
+            style={[
+              styles.importSheet,
+              { paddingBottom: Math.max(32, insets.bottom + 16) },
+            ]}
+          >
             {/* Handle bar */}
             <View style={styles.importHandle} />
 
@@ -1256,6 +1381,41 @@ export default function HomeScreen() {
                   numberOfLines={5}
                   textAlignVertical="top"
                 />
+                {voiceAvailable && (
+                  <View style={styles.importVoiceRow}>
+                    <Text style={styles.importVoiceHint}>
+                      {isManualVoiceActive
+                        ? "מקשיב... נעצר אוטומטית בסיום דיבור"
+                        : "אפשר להכתיב מוצרים בקול"}
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.importVoiceBtn,
+                        isManualVoiceActive && styles.importVoiceBtnActive,
+                      ]}
+                      onPress={() => {
+                        void toggleVoiceInput("manual");
+                      }}
+                      disabled={importing}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name={isManualVoiceActive ? "mic" : "mic-outline"}
+                        size={18}
+                        color={isManualVoiceActive ? "#fff" : dark.accent}
+                      />
+                      <Text
+                        style={[
+                          styles.importVoiceBtnText,
+                          isManualVoiceActive &&
+                            styles.importVoiceBtnTextActive,
+                        ]}
+                      >
+                        {isManualVoiceActive ? "מקליט" : "הכתבה"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <TouchableOpacity
                   style={[
                     styles.importSubmitBtn,
@@ -1491,6 +1651,43 @@ const styles = StyleSheet.create({
     color: dark.inputText,
     writingDirection: "rtl",
     minHeight: 120,
+  },
+  importVoiceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  importVoiceHint: {
+    flex: 1,
+    fontSize: 12,
+    color: dark.textSecondary,
+    textAlign: "left",
+  },
+  importVoiceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: 88,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: dark.accent,
+    backgroundColor: dark.surface,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+  },
+  importVoiceBtnActive: {
+    backgroundColor: dark.error,
+    borderColor: dark.error,
+  },
+  importVoiceBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: dark.accent,
+  },
+  importVoiceBtnTextActive: {
+    color: "#fff",
   },
   importSubmitBtn: {
     backgroundColor: dark.accent,
@@ -1732,8 +1929,8 @@ const styles = StyleSheet.create({
   emptyContainer: {
     flex: 1,
     alignItems: "center",
-    justifyContent: "center",
-    paddingTop: 100,
+    justifyContent: "flex-start",
+    paddingTop: 32,
   },
   emptyEmoji: {
     fontSize: 56,
@@ -1763,6 +1960,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#fff",
+  },
+
+  // ── Destination toggle (catalog / cart) ────────────────────
+  destToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 0,
+    marginTop: 18,
+    backgroundColor: dark.surfaceDark,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  destToggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  destToggleBtnActive: {
+    backgroundColor: dark.surfaceHighlight,
+    borderRadius: 10,
+  },
+  destToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: dark.textSecondary,
+  },
+  destToggleTextActive: {
+    color: dark.text,
   },
 
   // ── FAB ────────────────────────────────────────────────────

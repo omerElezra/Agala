@@ -12,17 +12,63 @@ export interface Database {
       households: {
         Row: {
           id: string;
+          name: string | null;
           created_at: string;
         };
         Insert: {
           id?: string;
+          name?: string | null;
           created_at?: string;
         };
         Update: {
           id?: string;
+          name?: string | null;
           created_at?: string;
         };
         Relationships: [];
+      };
+      household_invites: {
+        Row: {
+          id: string;
+          household_id: string;
+          code: string;
+          created_by: string;
+          expires_at: string;
+          uses_remaining: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          household_id: string;
+          code: string;
+          created_by: string;
+          expires_at?: string;
+          uses_remaining?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          household_id?: string;
+          code?: string;
+          created_by?: string;
+          expires_at?: string;
+          uses_remaining?: number;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "household_invites_household_id_fkey";
+            columns: ["household_id"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "household_invites_created_by_fkey";
+            columns: ["created_by"];
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       users: {
         Row: {
@@ -48,10 +94,10 @@ export interface Database {
         };
         Relationships: [
           {
-            foreignKeyName: 'users_household_id_fkey';
-            columns: ['household_id'];
-            referencedRelation: 'households';
-            referencedColumns: ['id'];
+            foreignKeyName: "users_household_id_fkey";
+            columns: ["household_id"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -82,10 +128,10 @@ export interface Database {
         };
         Relationships: [
           {
-            foreignKeyName: 'products_created_by_household_fkey';
-            columns: ['created_by_household'];
-            referencedRelation: 'households';
-            referencedColumns: ['id'];
+            foreignKeyName: "products_created_by_household_fkey";
+            columns: ["created_by_household"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -95,7 +141,7 @@ export interface Database {
           household_id: string;
           product_id: string;
           quantity: number;
-          status: 'active' | 'purchased' | 'snoozed';
+          status: "active" | "purchased" | "snoozed";
           added_at: string;
           purchased_at: string | null;
           snooze_until: string | null;
@@ -105,7 +151,7 @@ export interface Database {
           household_id: string;
           product_id: string;
           quantity?: number;
-          status?: 'active' | 'purchased' | 'snoozed';
+          status?: "active" | "purchased" | "snoozed";
           added_at?: string;
           purchased_at?: string | null;
           snooze_until?: string | null;
@@ -115,23 +161,23 @@ export interface Database {
           household_id?: string;
           product_id?: string;
           quantity?: number;
-          status?: 'active' | 'purchased' | 'snoozed';
+          status?: "active" | "purchased" | "snoozed";
           added_at?: string;
           purchased_at?: string | null;
           snooze_until?: string | null;
         };
         Relationships: [
           {
-            foreignKeyName: 'shopping_list_household_id_fkey';
-            columns: ['household_id'];
-            referencedRelation: 'households';
-            referencedColumns: ['id'];
+            foreignKeyName: "shopping_list_household_id_fkey";
+            columns: ["household_id"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'shopping_list_product_id_fkey';
-            columns: ['product_id'];
-            referencedRelation: 'products';
-            referencedColumns: ['id'];
+            foreignKeyName: "shopping_list_product_id_fkey";
+            columns: ["product_id"];
+            referencedRelation: "products";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -159,16 +205,16 @@ export interface Database {
         };
         Relationships: [
           {
-            foreignKeyName: 'purchase_history_household_id_fkey';
-            columns: ['household_id'];
-            referencedRelation: 'households';
-            referencedColumns: ['id'];
+            foreignKeyName: "purchase_history_household_id_fkey";
+            columns: ["household_id"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'purchase_history_product_id_fkey';
-            columns: ['product_id'];
-            referencedRelation: 'products';
-            referencedColumns: ['id'];
+            foreignKeyName: "purchase_history_product_id_fkey";
+            columns: ["product_id"];
+            referencedRelation: "products";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -180,7 +226,7 @@ export interface Database {
           ema_days: number;
           confidence_score: number;
           last_purchased_at: string | null;
-          auto_add_status: 'auto_add' | 'suggest_only' | 'manual_only';
+          auto_add_status: "auto_add" | "suggest_only" | "manual_only";
         };
         Insert: {
           id?: string;
@@ -189,7 +235,7 @@ export interface Database {
           ema_days?: number;
           confidence_score?: number;
           last_purchased_at?: string | null;
-          auto_add_status?: 'auto_add' | 'suggest_only' | 'manual_only';
+          auto_add_status?: "auto_add" | "suggest_only" | "manual_only";
         };
         Update: {
           id?: string;
@@ -198,20 +244,20 @@ export interface Database {
           ema_days?: number;
           confidence_score?: number;
           last_purchased_at?: string | null;
-          auto_add_status?: 'auto_add' | 'suggest_only' | 'manual_only';
+          auto_add_status?: "auto_add" | "suggest_only" | "manual_only";
         };
         Relationships: [
           {
-            foreignKeyName: 'household_inventory_rules_household_id_fkey';
-            columns: ['household_id'];
-            referencedRelation: 'households';
-            referencedColumns: ['id'];
+            foreignKeyName: "household_inventory_rules_household_id_fkey";
+            columns: ["household_id"];
+            referencedRelation: "households";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: 'household_inventory_rules_product_id_fkey';
-            columns: ['product_id'];
-            referencedRelation: 'products';
-            referencedColumns: ['id'];
+            foreignKeyName: "household_inventory_rules_product_id_fkey";
+            columns: ["product_id"];
+            referencedRelation: "products";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -221,6 +267,14 @@ export interface Database {
       get_my_household_id: {
         Args: Record<string, never>;
         Returns: string;
+      };
+      join_household_by_code: {
+        Args: { invite_code: string };
+        Returns: Json;
+      };
+      leave_household: {
+        Args: Record<string, never>;
+        Returns: Json;
       };
     };
     Enums: Record<string, never>;
