@@ -322,7 +322,6 @@ export default function HomeScreen() {
         // If still no category, ask the user to pick one via CategorySheet
         if (!category) {
           setPendingAddName(trimmed);
-          setSearchQuery("");
           setIsAddingFromSearch(false);
           return;
         }
@@ -456,7 +455,6 @@ export default function HomeScreen() {
       // ── Flow A: user is picking a category for a brand-new product ──
       if (pendingAddName) {
         const name = pendingAddName;
-        setPendingAddName(null);
 
         const { data: newProduct, error } = await supabase
           .from("products")
@@ -471,10 +469,14 @@ export default function HomeScreen() {
 
         if (error || !newProduct) {
           console.error("[index] create product error:", error?.message);
+          setPendingAddName(null);
           return;
         }
 
         addItem(newProduct.id, user.household_id, 1, newProduct, false);
+        setPendingAddName(null);
+        setSearchQuery("");
+        await fetchList(user.household_id);
         return;
       }
 
@@ -567,8 +569,10 @@ export default function HomeScreen() {
   const listData = useMemo<ListRow[]>(() => {
     const data: ListRow[] = [];
 
-    // Recommendations row (before sections)
-    if (showRecommendations && recommendations.length > 0) {
+    const isSearching = searchQuery.trim().length > 0;
+
+    // Recommendations row (before sections) — hide during search
+    if (!isSearching && showRecommendations && recommendations.length > 0) {
       data.push({ type: "recommendations", key: "recs" });
     }
 
@@ -728,6 +732,7 @@ export default function HomeScreen() {
     depletionPercentMap,
     showRecommendations,
     recommendations,
+    searchQuery,
   ]);
 
   // ── Sticky header indices for pinned section titles ──────
@@ -1092,54 +1097,55 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Main scrollable content */}
-      <FlatList
-        data={listData}
-        keyExtractor={(row) => {
-          if ("type" in row) return row.key;
-          return row.id;
-        }}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        extraData={depletionPercentMap}
-        stickyHeaderIndices={stickyIndices}
-        renderItem={renderRow}
-        ListEmptyComponent={
-          searchQuery.trim().length > 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name="search-outline"
-                size={48}
-                color={dark.textMuted}
-              />
-              <Text style={styles.emptyText}>לא נמצאו תוצאות</Text>
-              <Text style={styles.emptySubtext}>
-                &quot;{searchQuery.trim()}&quot; לא נמצא ברשימה
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.addFromSearchBtn,
-                  isAddingFromSearch && { opacity: 0.6 },
-                ]}
-                onPress={handleAddFromSearch}
-                activeOpacity={0.7}
-                disabled={isAddingFromSearch}
-              >
-                {isAddingFromSearch ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                )}
-                <Text style={styles.addFromSearchText}>
-                  {isAddingFromSearch
-                    ? "מוסיף..."
-                    : `הוסף "${searchQuery.trim()}" לרשימה`}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
+      {/* \"Not found\" overlay — rendered outside FlatList to avoid Fabric view recycling crash */}
+      {searchQuery.trim().length > 0 &&
+      filteredActive.length === 0 &&
+      filteredPurchased.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="search-outline" size={48} color={dark.textMuted} />
+          <Text style={styles.emptyText}>לא נמצאו תוצאות</Text>
+          <Text style={styles.emptySubtext}>
+            &quot;{searchQuery.trim()}&quot; לא נמצא ברשימה
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.addFromSearchBtn,
+              (isAddingFromSearch || !!pendingAddName) && { opacity: 0.6 },
+            ]}
+            onPress={handleAddFromSearch}
+            activeOpacity={0.7}
+            disabled={isAddingFromSearch || !!pendingAddName}
+          >
+            {isAddingFromSearch ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            )}
+            <Text style={styles.addFromSearchText}>
+              {isAddingFromSearch
+                ? "מוסיף..."
+                : pendingAddName
+                  ? "בחרו קטגוריה..."
+                  : `הוסף "${searchQuery.trim()}" לרשימה`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        /* Main scrollable content */
+        <FlatList
+          data={listData}
+          keyExtractor={(row) => {
+            if ("type" in row) return row.key;
+            return row.id;
+          }}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          extraData={depletionPercentMap}
+          stickyHeaderIndices={stickyIndices}
+          renderItem={renderRow}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>🛒</Text>
               <Text style={styles.emptyText}>הרשימה ריקה!</Text>
@@ -1147,9 +1153,9 @@ export default function HomeScreen() {
                 חפשו מוצר בשורת החיפוש למעלה
               </Text>
             </View>
-          )
-        }
-      />
+          }
+        />
+      )}
 
       {/* Snooze bottom sheet */}
       <SnoozeSheet
